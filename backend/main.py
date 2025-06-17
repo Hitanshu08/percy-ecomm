@@ -9,6 +9,7 @@ from typing import Dict, Optional
 SECRET_KEY = "change-me"  # replace with a secure key in production
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+CREDIT_RATE = 10  # credits per currency unit
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -16,7 +17,15 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 app = FastAPI()
 
 # In-memory user storage
-fake_users_db: Dict[str, Dict[str, str]] = {}
+# Each user record contains:
+# {
+#   "username": str,
+#   "hashed_password": str,
+#   "services": [{"name": str, "id": str, "password": str}],
+#   "credits": int,
+#   "btc_address": str
+# }
+fake_users_db: Dict[str, Dict[str, object]] = {}
 
 class User(BaseModel):
     username: str
@@ -28,6 +37,13 @@ class UserCreate(BaseModel):
 
 class UserInDB(User):
     hashed_password: str
+
+class ChangePassword(BaseModel):
+    old_password: str
+    new_password: str
+
+class Deposit(BaseModel):
+    amount: float
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
@@ -71,7 +87,17 @@ async def signup(user: UserCreate):
     if user.username in fake_users_db:
         raise HTTPException(status_code=400, detail="Username already registered")
     hashed_password = get_password_hash(user.password)
-    fake_users_db[user.username] = {"username": user.username, "hashed_password": hashed_password}
+    # Create default service credentials and wallet
+    fake_users_db[user.username] = {
+        "username": user.username,
+        "hashed_password": hashed_password,
+        "services": [
+            {"name": "Quillbot", "id": f"{user.username}-qb", "password": "pass1"},
+            {"name": "Grammarly", "id": f"{user.username}-gram", "password": "pass2"},
+        ],
+        "credits": 0,
+        "btc_address": f"btc-{user.username}"
+    }
     return {"msg": "User created"}
 
 @app.post("/token")
@@ -86,3 +112,32 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 @app.get("/me")
 async def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@app.get("/dashboard")
+async def get_dashboard(current_user: User = Depends(get_current_user)):
+    user = fake_users_db[current_user.username]
+    return {"services": user.get("services", [])}
+
+
+@app.post("/change-password")
+async def change_password(data: ChangePassword, current_user: User = Depends(get_current_user)):
+    user_record = fake_users_db[current_user.username]
+    if not verify_password(data.old_password, user_record["hashed_password"]):
+        raise HTTPException(status_code=400, detail="Incorrect password")
+    user_record["hashed_password"] = get_password_hash(data.new_password)
+    return {"msg": "Password updated"}
+
+
+@app.get("/wallet")
+async def get_wallet(current_user: User = Depends(get_current_user)):
+    user = fake_users_db[current_user.username]
+    return {"credits": user.get("credits", 0), "btc_address": user.get("btc_address")}
+
+
+@app.post("/wallet/deposit")
+async def wallet_deposit(dep: Deposit, current_user: User = Depends(get_current_user)):
+    user = fake_users_db[current_user.username]
+    credits = int(dep.amount * CREDIT_RATE)
+    user["credits"] = user.get("credits", 0) + credits
+    return {"credits": user["credits"]}
