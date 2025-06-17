@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 SECRET_KEY = "change-me"  # replace with a secure key in production
 ALGORITHM = "HS256"
@@ -16,24 +16,52 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 app = FastAPI()
 
+# Available services and their credentials managed centrally
+services_db = {
+    "Quillbot": {"id": "qb", "password": "pass1"},
+    "Grammarly": {"id": "gram", "password": "pass2"},
+}
+
 # In-memory user storage
 # Each user record contains:
 # {
 #   "username": str,
+#   "user_id": str,
 #   "hashed_password": str,
+#   "role": str,
 #   "services": [{"name": str, "id": str, "password": str}],
 #   "credits": int,
-#   "btc_address": str
+#   "btc_address": str,
+#   "notifications": List[str]
 # }
 fake_users_db: Dict[str, Dict[str, object]] = {}
 
+# Create a default admin user
+admin_password = get_password_hash("adminpass")
+fake_users_db["admin"] = {
+    "username": "admin",
+    "user_id": "admin",
+    "hashed_password": admin_password,
+    "role": "admin",
+    "services": [
+        {"name": name, "id": cred["id"], "password": cred["password"]}
+        for name, cred in services_db.items()
+    ],
+    "credits": 0,
+    "btc_address": "btc-admin",
+    "notifications": [],
+}
+
 class User(BaseModel):
     username: str
+    user_id: str
+    role: str = "user"
     disabled: Optional[bool] = False
 
 class UserCreate(BaseModel):
     username: str
     password: str
+    user_id: str
 
 class UserInDB(User):
     hashed_password: str
@@ -64,6 +92,11 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
+def admin_required(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
+
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -86,17 +119,23 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
 async def signup(user: UserCreate):
     if user.username in fake_users_db:
         raise HTTPException(status_code=400, detail="Username already registered")
+    if any(u.get("user_id") == user.user_id for u in fake_users_db.values()):
+        suggestions = [f"{user.user_id}{i}" for i in range(1, 4)]
+        raise HTTPException(status_code=400, detail=f"user_id_exists:{','.join(suggestions)}")
     hashed_password = get_password_hash(user.password)
     # Create default service credentials and wallet
     fake_users_db[user.username] = {
         "username": user.username,
+        "user_id": user.user_id,
         "hashed_password": hashed_password,
+        "role": "user",
         "services": [
-            {"name": "Quillbot", "id": f"{user.username}-qb", "password": "pass1"},
-            {"name": "Grammarly", "id": f"{user.username}-gram", "password": "pass2"},
+            {"name": name, "id": cred["id"], "password": cred["password"]}
+            for name, cred in services_db.items()
         ],
         "credits": 0,
-        "btc_address": f"btc-{user.username}"
+        "btc_address": f"btc-{user.username}",
+        "notifications": [],
     }
     return {"msg": "User created"}
 
@@ -148,3 +187,51 @@ async def get_subscriptions(current_user: User = Depends(get_current_user)):
     """Return the user's active subscriptions."""
     user = fake_users_db[current_user.username]
     return {"subscriptions": user.get("services", [])}
+
+
+@app.get("/notifications")
+async def get_notifications(current_user: User = Depends(get_current_user)):
+    user = fake_users_db[current_user.username]
+    notes = user.get("notifications", [])[:]
+    user["notifications"] = []
+    return {"notifications": notes}
+
+
+class SubscriptionRequest(BaseModel):
+    username: str
+    service_name: str
+
+
+class ServiceUpdate(BaseModel):
+    service_name: str
+    new_id: str
+    new_password: str
+
+
+@app.post("/admin/add-subscription")
+async def admin_add_subscription(req: SubscriptionRequest, user: User = Depends(admin_required)):
+    target = fake_users_db.get(req.username)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    cred = services_db.get(req.service_name)
+    if not cred:
+        raise HTTPException(status_code=404, detail="Service not found")
+    if not any(s["name"] == req.service_name for s in target["services"]):
+        target["services"].append({"name": req.service_name, "id": cred["id"], "password": cred["password"]})
+        target["notifications"].append(f"Subscribed to {req.service_name}")
+    return {"msg": "subscription added"}
+
+
+@app.post("/admin/update-service")
+async def admin_update_service(update: ServiceUpdate, user: User = Depends(admin_required)):
+    if update.service_name not in services_db:
+        raise HTTPException(status_code=404, detail="Service not found")
+    services_db[update.service_name] = {"id": update.new_id, "password": update.new_password}
+    # Update all user credentials and send notifications
+    for u in fake_users_db.values():
+        for svc in u.get("services", []):
+            if svc["name"] == update.service_name:
+                svc["id"] = update.new_id
+                svc["password"] = update.new_password
+                u.setdefault("notifications", []).append(f"Credentials updated for {update.service_name}")
+    return {"msg": "service updated"}

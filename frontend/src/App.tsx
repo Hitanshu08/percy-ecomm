@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import Signup from "./Signup";
 import Login from "./Login";
@@ -8,8 +8,17 @@ import Wallet from "./Wallet";
 import Shop from "./Shop";
 import ContactUs from "./ContactUs";
 import Subscriptions from "./Subscriptions";
+import Admin from "./Admin";
+import Notifications from "./Notifications";
+import { getMe } from "./api";
 
 export default function App() {
+  const [role, setRole] = useState("");
+
+  useEffect(() => {
+    getMe().then(u => setRole(u.role)).catch(() => {});
+  }, []);
+
   return (
     <BrowserRouter>
       <nav className="p-4 space-x-2 bg-gray-100">
@@ -20,6 +29,8 @@ export default function App() {
         <Link to="/shop">Shop</Link>
         <Link to="/subscriptions">Subscriptions</Link>
         <Link to="/contact">Contact Us</Link>
+        <Link to="/notifications">Notifications</Link>
+        {role === "admin" && <Link to="/admin">Admin</Link>}
       </nav>
       <div className="p-4">
         <Routes>
@@ -30,6 +41,8 @@ export default function App() {
           <Route path="/shop" element={<Shop />} />
           <Route path="/subscriptions" element={<Subscriptions />} />
           <Route path="/contact" element={<ContactUs />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/admin" element={<Admin />} />
         </Routes>
       </div>
     </BrowserRouter>
