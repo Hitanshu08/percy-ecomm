@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { getDashboard } from "./api";
 
 export default function Dashboard() {
-  const [services, setServices] = useState<{name: string; id: string; password: string;}[]>([]);
+  const [services, setServices] = useState<{name: string;}[]>([]);
 
   useEffect(() => {
     getDashboard().then(data => setServices(data.services)).catch(() => {});
@@ -15,8 +15,6 @@ export default function Dashboard() {
         {services.map(s => (
           <li key={s.name} className="border p-2">
             <div>{s.name}</div>
-            <div>ID: {s.id}</div>
-            <div>Password: {s.password}</div>
           </li>
         ))}
       </ul>

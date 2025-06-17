@@ -5,7 +5,10 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
+Service credentials are stored with hashed passwords. Set a strong `SECRET_KEY`
+environment variable before starting the server.
+
 Run the development server:
 ```bash
-uvicorn main:app --reload
+SECRET_KEY=your-secret uvicorn main:app --reload
 ```

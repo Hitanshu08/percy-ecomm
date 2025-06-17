@@ -5,8 +5,9 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from typing import Dict, Optional, List
+import os
 
-SECRET_KEY = "change-me"  # replace with a secure key in production
+SECRET_KEY = os.environ.get("SECRET_KEY", "change-me")  # replace with a secure key in production
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 CREDIT_RATE = 10  # credits per currency unit
@@ -16,10 +17,11 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 app = FastAPI()
 
-# Available services and their credentials managed centrally
+# Available services and their credentials managed centrally. Passwords are stored
+# hashed to avoid exposing them in plain text.
 services_db = {
-    "Quillbot": {"id": "qb", "password": "pass1"},
-    "Grammarly": {"id": "gram", "password": "pass2"},
+    "Quillbot": {"id": "qb", "password_hash": pwd_context.hash("pass1")},
+    "Grammarly": {"id": "gram", "password_hash": pwd_context.hash("pass2")},
 }
 
 # In-memory user storage
@@ -44,7 +46,7 @@ fake_users_db["admin"] = {
     "hashed_password": admin_password,
     "role": "admin",
     "services": [
-        {"name": name, "id": cred["id"], "password": cred["password"]}
+        {"name": name, "id": cred["id"], "password_hash": cred["password_hash"]}
         for name, cred in services_db.items()
     ],
     "credits": 0,
@@ -130,7 +132,7 @@ async def signup(user: UserCreate):
         "hashed_password": hashed_password,
         "role": "user",
         "services": [
-            {"name": name, "id": cred["id"], "password": cred["password"]}
+            {"name": name, "id": cred["id"], "password_hash": cred["password_hash"]}
             for name, cred in services_db.items()
         ],
         "credits": 0,
@@ -156,7 +158,7 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
 @app.get("/dashboard")
 async def get_dashboard(current_user: User = Depends(get_current_user)):
     user = fake_users_db[current_user.username]
-    return {"services": user.get("services", [])}
+    return {"services": [ {"name": s["name"]} for s in user.get("services", []) ]}
 
 
 @app.post("/change-password")
@@ -186,7 +188,7 @@ async def wallet_deposit(dep: Deposit, current_user: User = Depends(get_current_
 async def get_subscriptions(current_user: User = Depends(get_current_user)):
     """Return the user's active subscriptions."""
     user = fake_users_db[current_user.username]
-    return {"subscriptions": user.get("services", [])}
+    return {"subscriptions": [ {"name": s["name"]} for s in user.get("services", []) ]}
 
 
 @app.get("/notifications")
@@ -217,7 +219,7 @@ async def admin_add_subscription(req: SubscriptionRequest, user: User = Depends(
     if not cred:
         raise HTTPException(status_code=404, detail="Service not found")
     if not any(s["name"] == req.service_name for s in target["services"]):
-        target["services"].append({"name": req.service_name, "id": cred["id"], "password": cred["password"]})
+        target["services"].append({"name": req.service_name, "id": cred["id"], "password_hash": cred["password_hash"]})
         target["notifications"].append(f"Subscribed to {req.service_name}")
     return {"msg": "subscription added"}
 
@@ -226,12 +228,13 @@ async def admin_add_subscription(req: SubscriptionRequest, user: User = Depends(
 async def admin_update_service(update: ServiceUpdate, user: User = Depends(admin_required)):
     if update.service_name not in services_db:
         raise HTTPException(status_code=404, detail="Service not found")
-    services_db[update.service_name] = {"id": update.new_id, "password": update.new_password}
+    hashed = get_password_hash(update.new_password)
+    services_db[update.service_name] = {"id": update.new_id, "password_hash": hashed}
     # Update all user credentials and send notifications
     for u in fake_users_db.values():
         for svc in u.get("services", []):
             if svc["name"] == update.service_name:
                 svc["id"] = update.new_id
-                svc["password"] = update.new_password
+                svc["password_hash"] = hashed
                 u.setdefault("notifications", []).append(f"Credentials updated for {update.service_name}")
     return {"msg": "service updated"}
