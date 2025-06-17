@@ -141,3 +141,10 @@ async def wallet_deposit(dep: Deposit, current_user: User = Depends(get_current_
     credits = int(dep.amount * CREDIT_RATE)
     user["credits"] = user.get("credits", 0) + credits
     return {"credits": user["credits"]}
+
+
+@app.get("/subscriptions")
+async def get_subscriptions(current_user: User = Depends(get_current_user)):
+    """Return the user's active subscriptions."""
+    user = fake_users_db[current_user.username]
+    return {"subscriptions": user.get("services", [])}

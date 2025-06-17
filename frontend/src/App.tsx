@@ -6,6 +6,8 @@ import Dashboard from "./Dashboard";
 import UserPage from "./UserPage";
 import Wallet from "./Wallet";
 import Shop from "./Shop";
+import ContactUs from "./ContactUs";
+import Subscriptions from "./Subscriptions";
 
 export default function App() {
   return (
@@ -16,6 +18,8 @@ export default function App() {
         <Link to="/user">User</Link>
         <Link to="/wallet">Wallet</Link>
         <Link to="/shop">Shop</Link>
+        <Link to="/subscriptions">Subscriptions</Link>
+        <Link to="/contact">Contact Us</Link>
       </nav>
       <div className="p-4">
         <Routes>
@@ -24,6 +28,8 @@ export default function App() {
           <Route path="/user" element={<UserPage />} />
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/shop" element={<Shop />} />
+          <Route path="/subscriptions" element={<Subscriptions />} />
+          <Route path="/contact" element={<ContactUs />} />
         </Routes>
       </div>
     </BrowserRouter>
