@@ -4,13 +4,14 @@ import { login } from "./api";
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [token, setToken] = useState("");
+  const [token, setToken] = useState(localStorage.getItem("token") || "");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const data = await login(username, password);
       setToken(data.access_token);
+      localStorage.setItem("token", data.access_token);
     } catch {
       alert("Failed to login");
     }
