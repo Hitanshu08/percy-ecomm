@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { getSubscriptions } from "./api";
 
 export default function Subscriptions() {
-  const [subs, setSubs] = useState<{name: string; id: string; password: string;}[]>([]);
+  const [subs, setSubs] = useState<{name: string;}[]>([]);
 
   useEffect(() => {
     getSubscriptions().then(data => setSubs(data.subscriptions)).catch(() => {});
@@ -15,8 +15,6 @@ export default function Subscriptions() {
         {subs.map(s => (
           <li key={s.name} className="border p-2">
             <div>{s.name}</div>
-            <div>ID: {s.id}</div>
-            <div>Password: {s.password}</div>
           </li>
         ))}
       </ul>
