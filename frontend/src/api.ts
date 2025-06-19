@@ -5,16 +5,24 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+async function handle(res: Response) {
+  if (res.status === 401 || res.status === 403) {
+    window.location.href = "/access-denied";
+    throw new Error("access_denied");
+  }
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+  return res.json();
+}
+
 export async function signup(username: string, password: string, userId: string) {
   const res = await fetch(`${API_URL}/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password, user_id: userId }),
   });
-  if (!res.ok) {
-    throw new Error(await res.text());
-  }
-  return res.json();
+  return handle(res);
 }
 
 export async function login(username: string, password: string) {
@@ -26,18 +34,14 @@ export async function login(username: string, password: string) {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: data.toString(),
   });
-  if (!res.ok) {
-    throw new Error(await res.text());
-  }
-  return res.json();
+  return handle(res);
 }
 
 export async function getDashboard() {
   const res = await fetch(`${API_URL}/dashboard`, {
     headers: { ...authHeaders() }
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return handle(res);
 }
 
 export async function changePassword(oldPass: string, newPass: string) {
@@ -46,14 +50,12 @@ export async function changePassword(oldPass: string, newPass: string) {
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ old_password: oldPass, new_password: newPass })
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return handle(res);
 }
 
 export async function getWallet() {
   const res = await fetch(`${API_URL}/wallet`, { headers: { ...authHeaders() } });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return handle(res);
 }
 
 export async function deposit(amount: number) {
@@ -62,28 +64,24 @@ export async function deposit(amount: number) {
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ amount })
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return handle(res);
 }
 
 export async function getSubscriptions() {
   const res = await fetch(`${API_URL}/subscriptions`, {
     headers: { ...authHeaders() }
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return handle(res);
 }
 
 export async function getMe() {
   const res = await fetch(`${API_URL}/me`, { headers: { ...authHeaders() } });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return handle(res);
 }
 
 export async function getNotifications() {
   const res = await fetch(`${API_URL}/notifications`, { headers: { ...authHeaders() } });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return handle(res);
 }
 
 export async function adminAddSubscription(username: string, service: string) {
@@ -92,8 +90,7 @@ export async function adminAddSubscription(username: string, service: string) {
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ username, service_name: service })
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return handle(res);
 }
 
 export async function adminUpdateService(service: string, id: string, password: string) {
@@ -102,6 +99,5 @@ export async function adminUpdateService(service: string, id: string, password: 
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ service_name: service, new_id: id, new_password: password })
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return handle(res);
 }

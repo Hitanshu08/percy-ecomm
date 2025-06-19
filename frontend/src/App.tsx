@@ -11,6 +11,8 @@ import Subscriptions from "./Subscriptions";
 import Admin from "./Admin";
 import Notifications from "./Notifications";
 import { getMe } from "./api";
+import AccessDenied from "./AccessDenied";
+import NotFound from "./NotFound";
 
 export default function App() {
   const [role, setRole] = useState("");
@@ -43,6 +45,8 @@ export default function App() {
           <Route path="/contact" element={<ContactUs />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/access-denied" element={<AccessDenied />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </div>
     </BrowserRouter>
