@@ -39,7 +39,7 @@ services_db = {
 fake_users_db: Dict[str, Dict[str, object]] = {}
 
 # Create a default admin user
-admin_password = get_password_hash("adminpass")
+admin_password = pwd_context.hash("adminpass")
 fake_users_db["admin"] = {
     "username": "admin",
     "user_id": "admin",
@@ -94,8 +94,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def admin_required(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role != "admin":
+async def admin_required(current_user: User = Depends(lambda: None)) -> User:
+    # Placeholder for get_current_user, which should be defined above this function.
+    # Replace 'lambda: None' with 'get_current_user' once it is defined.
+    if current_user is None or current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
 
