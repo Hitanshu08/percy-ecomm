@@ -1,0 +1,49 @@
+{
+  "app": {
+    "name": "Percy E-commerce Platform",
+    "version": "1.0.0",
+    "description": "Subscription-based e-commerce platform for digital services"
+  },
+  "api": {
+    "base_url": "http://localhost:8000",
+    "timeout": 30000,
+    "retry_attempts": 3,
+    "retry_delay": 1000
+  },
+  "credits": {
+    "credit_rate": 10,
+    "daily_credit_rate": 100,
+    "admin_starting_credits": 100000,
+    "usd_to_credits_rate": 100
+  },
+  "subscription_durations": {
+    "7days": {
+      "name": "7 Days",
+      "days": 7,
+      "credits_cost": 50
+    },
+    "1month": {
+      "name": "1 Month",
+      "days": 30,
+      "credits_cost": 200
+    },
+    "3months": {
+      "name": "3 Months",
+      "days": 90,
+      "credits_cost": 500
+    },
+    "6months": {
+      "name": "6 Months",
+      "days": 180,
+      "credits_cost": 900
+    },
+    "1year": {
+      "name": "1 Year",
+      "days": 365,
+      "credits_cost": 1500
+    }
+  },
+  "contact": {
+    "telegram": "https://t.me/CorrectingSomething"
+  }
+} 

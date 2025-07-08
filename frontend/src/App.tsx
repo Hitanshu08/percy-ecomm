@@ -1,7 +1,11 @@
-import React, { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
-import Signup from "./Signup";
-import Login from "./Login";
+import React from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
+import { useAuth } from "./contexts/AuthContext";
+import { useTheme } from "./contexts/ThemeContext";
+import AuthPage from "./components/AuthPage";
+import Header from "./components/Header";
 import Dashboard from "./Dashboard";
 import UserPage from "./UserPage";
 import Wallet from "./Wallet";
@@ -9,46 +13,76 @@ import Shop from "./Shop";
 import ContactUs from "./ContactUs";
 import Subscriptions from "./Subscriptions";
 import Admin from "./Admin";
-import Notifications from "./Notifications";
-import { getMe } from "./api";
 import AccessDenied from "./AccessDenied";
 import NotFound from "./NotFound";
 
-export default function App() {
-  const [role, setRole] = useState("");
+// Protected Route Component
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useAuth();
 
-  useEffect(() => {
-    getMe().then(u => setRole(u.role)).catch(() => {});
-  }, []);
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
+  if (!isAuthenticated) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Admin Route Component
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+
+  if (user?.role !== 'admin') {
+    return <Navigate to="/access-denied" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Main App Layout
+function AppLayout() {
+  const { theme } = useTheme();
+  
   return (
-    <BrowserRouter>
-      <nav className="p-4 space-x-2 bg-gray-100">
-        <Link to="/">Auth</Link>
-        <Link to="/dashboard">Dashboard</Link>
-        <Link to="/user">User</Link>
-        <Link to="/wallet">Wallet</Link>
-        <Link to="/shop">Shop</Link>
-        <Link to="/subscriptions">Subscriptions</Link>
-        <Link to="/contact">Contact Us</Link>
-        <Link to="/notifications">Notifications</Link>
-        {role === "admin" && <Link to="/admin">Admin</Link>}
-      </nav>
-      <div className="p-4">
+    <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
+      <Header />
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Routes>
-          <Route path="/" element={<><Signup /><hr className="my-4" /><Login /></>} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/user" element={<UserPage />} />
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/shop" element={<Shop />} />
           <Route path="/subscriptions" element={<Subscriptions />} />
           <Route path="/contact" element={<ContactUs />} />
-          <Route path="/notifications" element={<Notifications />} />
-          <Route path="/admin" element={<Admin />} />
+          <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           <Route path="/access-denied" element={<AccessDenied />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </div>
-    </BrowserRouter>
+      </main>
+    </div>
+  );
+}
+
+// Main App Component
+export default function App() {
+  return (
+    <ThemeProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <Routes>
+            <Route path="/auth" element={<AuthPage />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/*" element={<ProtectedRoute><AppLayout /></ProtectedRoute>} />
+          </Routes>
+        </AuthProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }

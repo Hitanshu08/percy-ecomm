@@ -1,10 +1,12 @@
 import React, { useState } from "react";
 import { login } from "./api";
+import { useNavigate } from "react-router-dom";
 
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [token, setToken] = useState(localStorage.getItem("token") || "");
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -12,6 +14,8 @@ export default function Login() {
       const data = await login(username, password);
       setToken(data.access_token);
       localStorage.setItem("token", data.access_token);
+      localStorage.setItem("refreshToken", data.refresh_token);
+      navigate('/dashboard');
     } catch {
       alert("Failed to login");
     }
