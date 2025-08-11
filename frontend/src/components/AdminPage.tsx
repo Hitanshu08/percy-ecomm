@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { getServices, createService, updateService, deleteService, adminAddSubscription } from '../api';
+import { getServices, createService, updateService, deleteService, adminAddSubscription, getAdminUserSubscriptions } from '../api';
+import { config } from '../config';
 
 interface ServiceAccount {
   id: string;
@@ -33,8 +34,10 @@ export default function AdminPage() {
   });
   const [subscriptionForm, setSubscriptionForm] = useState({
     username: '',
-    service_name: ''
+    service_name: '',
+    duration: ''
   });
+  const [userSubs, setUserSubs] = useState<any | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -138,9 +141,11 @@ export default function AdminPage() {
     setSuccess('');
 
     try {
-      await adminAddSubscription(subscriptionForm.username, subscriptionForm.service_name);
+      await adminAddSubscription(subscriptionForm.username, subscriptionForm.service_name, subscriptionForm.duration);
       setSuccess(`Subscription added for ${subscriptionForm.username}`);
-      setSubscriptionForm({ username: '', service_name: '' });
+      setSubscriptionForm({ username: '', service_name: '', duration: '' });
+      const subs = await getAdminUserSubscriptions(subscriptionForm.username);
+      setUserSubs(subs);
     } catch (err: any) {
       setError(err.message || 'Failed to add subscription');
     }
@@ -462,6 +467,24 @@ export default function AdminPage() {
                   ))}
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Duration</label>
+                <select
+                  value={subscriptionForm.duration}
+                  onChange={(e) => setSubscriptionForm(prev => ({ ...prev, duration: e.target.value }))}
+                  className={`w-full px-4 py-3 rounded-lg border transition-colors ${
+                    theme === 'dark' 
+                      ? 'border-gray-600 focus:border-blue-500 bg-gray-700 text-white' 
+                      : 'border-gray-300 focus:border-blue-500 bg-white text-gray-900'
+                  }`}
+                  required
+                >
+                  <option value="">Select duration</option>
+                  {Object.entries(config.getSubscriptionDurations()).map(([key, d]: any) => (
+                    <option key={key} value={key}>{d.name} ({d.credits_cost} credits)</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <button
@@ -475,6 +498,28 @@ export default function AdminPage() {
               Add Subscription
             </button>
           </form>
+
+          {userSubs && (
+            <div className="mt-6">
+              <h3 className="text-xl font-bold mb-2">{userSubs.username}'s Subscriptions</h3>
+              <div className="space-y-2">
+                {userSubs.subscriptions.length === 0 ? (
+                  <div className="text-sm text-gray-500">No subscriptions</div>
+                ) : (
+                  userSubs.subscriptions.map((s: any, idx: number) => (
+                    <div key={idx} className={`p-3 rounded border ${theme === 'dark' ? 'border-gray-600 bg-gray-700' : 'border-gray-300 bg-gray-50'}`}>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
+                        <div><span className="font-medium">Service:</span> {s.service_name}</div>
+                        <div><span className="font-medium">Account:</span> {s.account_id}</div>
+                        <div><span className="font-medium">End Date:</span> {s.end_date}</div>
+                        <div><span className="font-medium">Active:</span> {s.is_active ? 'Yes' : 'No'}</div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -287,10 +287,10 @@ export async function getNotifications() {
 }
 
 // Admin API calls
-export async function adminAddSubscription(username: string, service: string) {
+export async function adminAddSubscription(username: string, serviceName: string, duration: string) {
   return apiCall(`${API_URL}/admin/assign-subscription`, {
     method: 'POST',
-    body: JSON.stringify({ username, service_id: service, end_date: "2025-12-31" })
+    body: JSON.stringify({ username, service_name: serviceName, duration })
   });
 }
 
@@ -355,11 +355,8 @@ export async function deleteService(serviceName: string) {
   });
 }
 
-export async function assignSubscription(username: string, serviceId: string, duration: string) {
-  return apiCall(`${API_URL}/admin/assign-subscription`, {
-    method: 'POST',
-    body: JSON.stringify({ username, service_id: serviceId, end_date: duration })
-  });
+export async function getAdminUserSubscriptions(username: string) {
+  return apiCall(`${API_URL}/admin/users/${encodeURIComponent(username)}/subscriptions`);
 }
 
 export async function addCredits(username: string, credits: number) {

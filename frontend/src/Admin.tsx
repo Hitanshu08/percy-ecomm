@@ -52,6 +52,10 @@ export default function Admin() {
   const [selectedService, setSelectedService] = useState('');
   const [selectedDuration, setSelectedDuration] = useState('1month');
   const [addingSubscription, setAddingSubscription] = useState(false);
+  const [userSubs, setUserSubs] = useState<any | null>(null);
+  const [expandedUser, setExpandedUser] = useState<string | null>(null);
+  const [subsByUser, setSubsByUser] = useState<Record<string, any>>({});
+  const [loadingSubsFor, setLoadingSubsFor] = useState<string | null>(null);
   
   // Credit management state
   const [creditUser, setCreditUser] = useState<string>('');
@@ -218,14 +222,7 @@ export default function Admin() {
 
     setAddingSubscription(true);
     try {
-      const result = await callApi<{
-        message: string;
-        service_name: string;
-        assigned_account_id: string;
-        account_expiry_days: number;
-        credits_deducted: number;
-        remaining_credits: number;
-      }>('http://localhost:8000/admin/assign-subscription', {
+      const result = await callApi<any>('http://localhost:8000/admin/assign-subscription', {
         method: 'POST',
         body: JSON.stringify({
           username: selectedUser,
@@ -234,7 +231,10 @@ export default function Admin() {
         })
       });
 
-      alert(`Success! ${result.message}\nService: ${result.service_name}\nAccount ID: ${result.assigned_account_id}\nExpires in: ${result.account_expiry_days} days\nCredits deducted: ${result.credits_deducted}\nRemaining credits: ${result.remaining_credits}`);
+      alert(`Success! ${result.message}\nCredits deducted: ${result.cost ?? 'N/A'}\nRemaining credits: ${result.credits ?? 'N/A'}`);
+      if (selectedUser && expandedUser === selectedUser) {
+        await fetchUserSubscriptions(selectedUser);
+      }
       setSelectedUser('');
       setSelectedService('');
       setSelectedDuration('');
@@ -244,6 +244,23 @@ export default function Admin() {
       alert('Failed to add subscription. Please try again.');
     } finally {
       setAddingSubscription(false);
+    }
+  };
+
+  const fetchUserSubscriptions = async (username: string) => {
+    if (!username) return;
+    try {
+      setLoadingSubsFor(username);
+      const res = await fetch(`http://localhost:8000/admin/users/${encodeURIComponent(username)}/subscriptions`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setSubsByUser(prev => ({ ...prev, [username]: data }));
+    } catch (e) {
+      console.error('Failed to fetch user subscriptions', e);
+    } finally {
+      setLoadingSubsFor(null);
     }
   };
 
@@ -627,11 +644,80 @@ export default function Admin() {
                             {user.role}
                           </span>
                         </div>
+                        <div className="mt-3 flex justify-end">
+                          <button
+                            onClick={async () => {
+                              if (expandedUser === user.username) {
+                                setExpandedUser(null);
+                                return;
+                              }
+                              setExpandedUser(user.username);
+                              if (!subsByUser[user.username]) {
+                                await fetchUserSubscriptions(user.username);
+                              }
+                            }}
+                            className="px-3 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm"
+                          >
+                            {expandedUser === user.username ? 'Hide Subscriptions' : 'View Subscriptions'}
+                          </button>
+                        </div>
+
+                        {expandedUser === user.username && (
+                          <div className="mt-3 p-3 border border-gray-200 dark:border-gray-600 rounded-md">
+                            {loadingSubsFor === user.username ? (
+                              <div className="text-sm text-gray-500 dark:text-gray-400">Loading subscriptions...</div>
+                            ) : subsByUser[user.username] && subsByUser[user.username].subscriptions && subsByUser[user.username].subscriptions.length > 0 ? (
+                              <div className="space-y-2">
+                                {subsByUser[user.username].subscriptions.map((s: any, idx: number) => (
+                                  <div key={idx} className="p-2 border border-gray-200 dark:border-gray-700 rounded">
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
+                                      <div><span className="font-medium">Service:</span> {s.service_name}</div>
+                                      <div><span className="font-medium">Account:</span> {s.account_id}</div>
+                                      <div><span className="font-medium">End Date:</span> {s.end_date}</div>
+                                      <div><span className="font-medium">Active:</span> {s.is_active ? 'Yes' : 'No'}</div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-gray-500 dark:text-gray-400">No subscriptions for this user.</div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
+
+              {/* User Subscriptions Panel */}
+              {userSubs && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 mt-6">
+                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {userSubs.username}'s Subscriptions (Credits: {userSubs.credits})
+                    </h2>
+                  </div>
+                  <div className="p-4">
+                    {userSubs.subscriptions && userSubs.subscriptions.length > 0 ? (
+                      <div className="space-y-3">
+                        {userSubs.subscriptions.map((s: any, idx: number) => (
+                          <div key={idx} className="p-3 border border-gray-200 dark:border-gray-700 rounded-md">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+                              <div><span className="font-medium">Service:</span> {s.service_name}</div>
+                              <div><span className="font-medium">Account:</span> {s.account_id}</div>
+                              <div><span className="font-medium">End Date:</span> {s.end_date}</div>
+                              <div><span className="font-medium">Active:</span> {s.is_active ? 'Yes' : 'No'}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500 dark:text-gray-400">No subscriptions for this user.</div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
