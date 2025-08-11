@@ -48,8 +48,11 @@ class AdminAddCredits(BaseModel):
 
 class AdminAssignSubscription(BaseModel):
     username: str
-    service_id: str
-    end_date: str
+    # Either provide service_id + end_date, or service_name + duration
+    service_id: Optional[str] = None
+    end_date: Optional[str] = None
+    service_name: Optional[str] = None
+    duration: Optional[str] = None
 
 class SubscriptionPurchase(BaseModel):
     service_name: str

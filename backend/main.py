@@ -2,7 +2,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.v1 import auth, users, services, wallet, admin
 from core.config import settings
-from db.mongodb import MongoDB
 from db.base import initialize_database
 import logging
 
@@ -34,8 +33,7 @@ app.include_router(admin.router, tags=["Admin"])
 
 @app.on_event("startup")
 async def startup_db_client():
-    """Connect to MongoDB on startup and initialize with sample data"""
-    await MongoDB.connect_to_mongo()
+    """Initialize SQL database with sample data if needed"""
     try:
         initialize_database()
         logger.info("Database initialized with sample data")
@@ -45,8 +43,7 @@ async def startup_db_client():
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    """Close MongoDB connection on shutdown"""
-    await MongoDB.close_mongo_connection()
+    """Application shutdown"""
     logger.info("Application shutdown complete")
 
 @app.get("/")

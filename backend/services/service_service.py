@@ -1,8 +1,11 @@
 from schemas.user_schema import User, SubscriptionPurchase
-from db.base import get_fake_users_db, get_fake_services_db
-from db.mongodb import get_sync_users_collection, get_sync_services_collection, get_sync_refresh_tokens_collection
+from db.session import SessionLocal
+from db.models.user import User as UserModel
+from db.models.service import Service as ServiceModel
+from db.models.refresh_token import RefreshToken
 from core.security import create_access_token
 from core.config import settings
+from config import config
 from fastapi import HTTPException
 from datetime import timedelta, datetime
 import logging
@@ -24,14 +27,14 @@ def format_date(date_obj: datetime) -> str:
 def get_services():
     """Get all available services with detailed account information"""
     try:
-        services_collection = get_sync_services_collection()
+        db = SessionLocal()
         services = []
         today = datetime.now()
-        
-        for service in services_collection.find():
-            available_accounts = []
+        try:
+            for service in db.query(ServiceModel).all():
+                available_accounts = []
             
-            for account in service["accounts"]:
+            for account in (service.accounts or []):
                 if account["is_active"]:
                     end_date = parse_date(account["end_date"])
                     days_until_expiry = (end_date - today).days
@@ -42,15 +45,16 @@ def get_services():
                         "end_date": account["end_date"]
                     })
             
-            services.append({
-                "name": service["name"],
-                "image": service["image"],
-                "available_accounts": len(available_accounts),
-                "total_accounts": len(service["accounts"]),
-                "available": available_accounts
-            })
-        
-        return {"services": services}
+                services.append({
+                    "name": service.name,
+                    "image": service.image,
+                    "available_accounts": len(available_accounts),
+                    "total_accounts": len(service.accounts or []),
+                    "available": available_accounts
+                })
+            return {"services": services}
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Error getting services: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -58,8 +62,12 @@ def get_services():
 def purchase_subscription(request: SubscriptionPurchase, current_user: User):
     """Purchase a subscription or extend existing one"""
     try:
-        users_collection = get_sync_users_collection()
-        user = users_collection.find_one({"username": current_user.username})
+        db = SessionLocal()
+        user = None
+        try:
+            user = db.query(UserModel).filter(UserModel.username == current_user.username).first()
+        finally:
+            db.close()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -73,20 +81,23 @@ def purchase_subscription(request: SubscriptionPurchase, current_user: User):
         
         cost = duration_config["credits_cost"]
         
-        if user["credits"] < cost:
+        if (user.credits or 0) < cost:
             raise HTTPException(status_code=400, detail="Insufficient credits")
         
         # Check if user already has a subscription for this service
         existing_subscription = None
-        for service in user["services"]:
+        for service in (user.services or []):
             # Try to match service by checking if the service_id corresponds to the requested service
             service_name = request.service_name
-            services_collection = get_sync_services_collection()
-            service_data = services_collection.find_one({"name": service_name})
+            db = SessionLocal()
+            try:
+                service_data = db.query(ServiceModel).filter(ServiceModel.name == service_name).first()
+            finally:
+                db.close()
             
             if service_data:
                 # Check if any account in this service matches the user's service_id
-                for account in service_data["accounts"]:
+                for account in (service_data.accounts or []):
                     if account["id"] == service["service_id"]:
                         existing_subscription = service
                         break
@@ -95,8 +106,11 @@ def purchase_subscription(request: SubscriptionPurchase, current_user: User):
         
         if existing_subscription:
             # User has existing subscription - check if extension is possible
-            services_collection = get_sync_services_collection()
-            service_data = services_collection.find_one({"name": request.service_name})
+            db = SessionLocal()
+            try:
+                service_data = db.query(ServiceModel).filter(ServiceModel.name == request.service_name).first()
+            finally:
+                db.close()
             if not service_data:
                 raise HTTPException(status_code=404, detail="Service not found")
             
@@ -108,7 +122,7 @@ def purchase_subscription(request: SubscriptionPurchase, current_user: User):
             max_possible_end_date = current_end_date
             has_extendable_accounts = False
             
-            for account in service_data["accounts"]:
+            for account in (service_data.accounts or []):
                 if account["is_active"]:
                     account_end_date = parse_date(account["end_date"])
                     if account_end_date > current_end_date:
@@ -131,16 +145,28 @@ def purchase_subscription(request: SubscriptionPurchase, current_user: User):
             new_end_date_str = format_date(new_end_date)
             
             # Update user's subscription
-            users_collection.update_one(
-                {"username": current_user.username, "services.service_id": existing_subscription["service_id"]},
-                {"$set": {"services.$.end_date": new_end_date_str}}
-            )
+            # Update user services end_date in JSON array
+            updated_services = []
+            for s in (user.services or []):
+                if s["service_id"] == existing_subscription["service_id"]:
+                    s = {**s, "end_date": new_end_date_str}
+                updated_services.append(s)
+            db = SessionLocal()
+            try:
+                db_user = db.query(UserModel).filter(UserModel.username == current_user.username).first()
+                db_user.services = updated_services
+                db.commit()
+            finally:
+                db.close()
             
             # Deduct credits
-            users_collection.update_one(
-                {"username": current_user.username},
-                {"$inc": {"credits": -cost}}
-            )
+            db = SessionLocal()
+            try:
+                db_user = db.query(UserModel).filter(UserModel.username == current_user.username).first()
+                db_user.credits = (db_user.credits or 0) - cost
+                db.commit()
+            finally:
+                db.close()
             
             return {
                 "message": f"Extended subscription by {duration_config['name']}",
@@ -151,13 +177,16 @@ def purchase_subscription(request: SubscriptionPurchase, current_user: User):
             }
         else:
             # New subscription - check if service has available accounts
-            services_collection = get_sync_services_collection()
-            service_data = services_collection.find_one({"name": request.service_name})
+            db = SessionLocal()
+            try:
+                service_data = db.query(ServiceModel).filter(ServiceModel.name == request.service_name).first()
+            finally:
+                db.close()
             if not service_data:
                 raise HTTPException(status_code=404, detail="Service not found")
             
             # Check if there are any available accounts
-            available_accounts = [acc for acc in service_data["accounts"] if acc["is_active"]]
+            available_accounts = [acc for acc in (service_data.accounts or []) if acc["is_active"]]
             if not available_accounts:
                 raise HTTPException(status_code=400, detail="No available accounts for this service")
             
@@ -175,20 +204,29 @@ def purchase_subscription(request: SubscriptionPurchase, current_user: User):
                 raise HTTPException(status_code=400, detail=f"Requested duration ({duration_config['days']} days) exceeds maximum available days ({max_available_days} days)")
             
             # Deduct credits
-            users_collection.update_one(
-                {"username": current_user.username},
-                {"$inc": {"credits": -cost}}
-            )
+            db = SessionLocal()
+            try:
+                db_user = db.query(UserModel).filter(UserModel.username == current_user.username).first()
+                db_user.credits = (db_user.credits or 0) - cost
+                db.commit()
+            finally:
+                db.close()
             
             # Add new subscription
-            users_collection.update_one(
-                {"username": current_user.username},
-                {"$push": {"services": {
-                    "service_id": f"service_{request.duration}",
-                    "end_date": "31/12/2025",
-                    "is_active": True
-                }}}
-            )
+            new_subscription = {
+                "service_id": f"service_{request.duration}",
+                "end_date": "31/12/2025",
+                "is_active": True,
+            }
+            db = SessionLocal()
+            try:
+                db_user = db.query(UserModel).filter(UserModel.username == current_user.username).first()
+                current_services = db_user.services or []
+                current_services.append(new_subscription)
+                db_user.services = current_services
+                db.commit()
+            finally:
+                db.close()
             
             return {
                 "message": f"Purchased {duration_config['name']} subscription",
@@ -203,15 +241,18 @@ def purchase_subscription(request: SubscriptionPurchase, current_user: User):
 def get_user_subscriptions(current_user: User):
     """Get user's subscriptions with detailed information"""
     try:
-        users_collection = get_sync_users_collection()
-        user_record = users_collection.find_one({"username": current_user.username})
+        db = SessionLocal()
+        try:
+            user_record = db.query(UserModel).filter(UserModel.username == current_user.username).first()
+        finally:
+            db.close()
         if not user_record:
             raise HTTPException(status_code=404, detail="User not found")
         
         subscriptions = []
         seen_service_ids = set()  # To avoid duplicates
         
-        for service in user_record.get("services", []):
+        for service in (user_record.services or []):
             # Skip if we've already seen this service_id
             if service["service_id"] in seen_service_ids:
                 continue
@@ -224,16 +265,19 @@ def get_user_subscriptions(current_user: User):
             password = "password123"  # Default password
             
             # Try to find matching service in services collection
-            services_collection = get_sync_services_collection()
-            for service_doc in services_collection.find():
-                for account in service_doc["accounts"]:
-                    if account["id"] == service["service_id"]:
-                        service_name = service_doc["name"]
-                        service_image = service_doc["image"]
-                        password = account["password"]
-                        break
+            db = SessionLocal()
+            try:
+                for service_doc in db.query(ServiceModel).all():
+                    for account in (service_doc.accounts or []):
+                        if account["id"] == service["service_id"]:
+                            service_name = service_doc.name
+                            service_image = service_doc.image
+                            password = account["password"]
+                            break
                 if service_name != "Unknown Service":
-                    break
+                    pass
+            finally:
+                db.close()
             
             subscriptions.append({
                 "service_name": service_name,
@@ -257,21 +301,28 @@ def refresh_access_token(request: dict):
             raise HTTPException(status_code=400, detail="Refresh token required")
         
         # Find user by refresh token
-        tokens_collection = get_sync_refresh_tokens_collection()
-        token_doc = tokens_collection.find_one({"refresh_token": refresh_token})
+        # Check token in DB
+        db = SessionLocal()
+        try:
+            token_doc = db.query(RefreshToken).filter(RefreshToken.token == refresh_token).first()
+        finally:
+            db.close()
         
         if not token_doc:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         
-        username = token_doc["username"]
-        users_collection = get_sync_users_collection()
-        user = users_collection.find_one({"username": username})
+        username = token_doc.username
+        db = SessionLocal()
+        try:
+            user = db.query(UserModel).filter(UserModel.username == username).first()
+        finally:
+            db.close()
         
         if not user:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         
         access_token = create_access_token(
-            data={"sub": user["username"], "email": user["email"], "user_id": user["user_id"], "role": user["role"]},
+            data={"sub": user.username, "email": user.email, "user_id": (user.user_id or user.username), "role": user.role},
             expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         )
         return {"access_token": access_token, "token_type": "bearer", "refresh_token": refresh_token}

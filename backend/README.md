@@ -8,13 +8,13 @@ A FastAPI-based backend for the Percy E-commerce subscription platform.
 - Subscription management
 - Credit system
 - Admin panel
-- MongoDB database integration
+- MySQL database integration (via SQLAlchemy)
 - RESTful API endpoints
 
 ## Prerequisites
 
 - Python 3.8+
-- MongoDB (local or cloud instance)
+- MySQL 8.x (local or cloud instance)
 - pip
 
 ## Installation
@@ -35,9 +35,10 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Set up MongoDB:
-   - Install MongoDB locally or use MongoDB Atlas
+4. Set up MySQL:
+   - Install MySQL locally or use a hosted provider
    - Create a database named `percy_ecomm`
+   - Ensure a user with privileges exists and note credentials
 
 5. Configure environment variables:
 ```bash
@@ -49,8 +50,7 @@ cp env.example .env
 
 The application uses environment variables for configuration. Key settings:
 
-- `MONGODB_URL`: MongoDB connection string (default: `mongodb://localhost:27017`)
-- `MONGODB_DATABASE`: Database name (default: `percy_ecomm`)
+- `DATABASE_URL`: SQLAlchemy URL (default: `mysql+pymysql://root:password@127.0.0.1:3306/percy_ecomm`)
 - `SECRET_KEY`: JWT secret key
 - `ADMIN_PASSWORD`: Admin user password
 
@@ -67,13 +67,13 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 ## Database
 
-The application uses MongoDB with the following collections:
+The application uses MySQL with SQLAlchemy models:
 
-- `users`: User accounts and profiles
-- `services`: Available services and accounts
-- `refresh_tokens`: JWT refresh tokens
+- `users` table: User accounts and profiles (JSON fields for `services`, `notifications`, `profile`)
+- `services` table: Available services and their `accounts` JSON
+- `refresh_tokens` table: Stored refresh tokens
 
-Sample data is automatically initialized on startup.
+Tables are auto-created and sample data is seeded on startup if empty.
 
 ## API Endpoints
 

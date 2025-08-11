@@ -24,15 +24,16 @@ class Settings(BaseSettings):
     ADMIN_USER_ID: str = "admin"
     ADMIN_ROLE: str = "admin"
     
-    # MongoDB settings
-    MONGODB_URL: str = "mongodb://127.0.0.1:27017/?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+2.5.5"
-    MONGODB_DATABASE: str = "percy_ecomm"
+    # Database settings (MySQL)
+    DATABASE_URL: str = "mysql+pymysql://root:password@127.0.0.1:3306/percy_ecomm"
     
     # CORS settings
     ALLOWED_ORIGINS: list = ["http://localhost:3000", "http://localhost:5173"]
     
     # API settings
     API_V1_STR: str = "/api/v1"
+    API_BASE_URL: str = "http://localhost:8000"
+    LOG_LEVEL: str = "INFO"
     
     class Config:
         env_file = ".env"
@@ -58,10 +59,11 @@ def get_env_var(key: str, default: str = "") -> str:
 
 # Update settings with environment variables
 settings.SECRET_KEY = get_env_var("SECRET_KEY", settings.SECRET_KEY)
-settings.MONGODB_URL = get_env_var("MONGODB_URL", settings.MONGODB_URL)
-settings.MONGODB_DATABASE = get_env_var("MONGODB_DATABASE", settings.MONGODB_DATABASE)
+settings.DATABASE_URL = get_env_var("DATABASE_URL", settings.DATABASE_URL)
 settings.ADMIN_PASSWORD = get_env_var("ADMIN_PASSWORD", settings.ADMIN_PASSWORD)
 settings.DEBUG = get_env_var("DEBUG", str(settings.DEBUG)) == True
+settings.API_BASE_URL = get_env_var("API_BASE_URL", settings.API_BASE_URL)
+settings.LOG_LEVEL = get_env_var("LOG_LEVEL", settings.LOG_LEVEL)
 
 def is_bcrypt_hash(s):
     # Bcrypt hashes start with $2b$ or $2a$ and are 60 chars long

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from schemas.user_schema import AdminAssignSubscription, AdminAddCredits, User
 from api.dependencies import get_current_user, admin_required
-from services.admin_service import assign_subscription, add_credits_to_user, get_all_users, get_all_admin_services, add_service, update_service, delete_service, get_service_details
+from services.admin_service import assign_subscription, add_credits_to_user, get_all_users, get_all_admin_services, add_service, update_service, delete_service, get_service_details, get_user_subscriptions_admin
 
 router = APIRouter()
 
@@ -36,3 +36,7 @@ def delete_admin_service(service_name: str, current_user: User = Depends(admin_r
 @router.get("/admin/services/{service_name}")
 def get_admin_service_details(service_name: str, current_user: User = Depends(admin_required)):
     return get_service_details(service_name, current_user) 
+
+@router.get("/admin/users/{username}/subscriptions")
+def get_admin_user_subscriptions(username: str, current_user: User = Depends(admin_required)):
+    return get_user_subscriptions_admin(username, current_user)

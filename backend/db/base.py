@@ -1,18 +1,13 @@
-# In-memory storage for current implementation
-# This will be replaced with database models in the future
-# fake_users_db = {}
-# services_db = {}
-# refresh_tokens_db = {}
-
-# Initialize admin user
 from core.security import get_password_hash
 from core.config import settings
-from db.mongodb import get_sync_users_collection, get_sync_services_collection, get_sync_refresh_tokens_collection
+from db.session import Base, engine
+from db.models.user import User
+from db.models.service import Service
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Sample data for MongoDB initialization
+# Sample data for SQL initialization
 SAMPLE_USERS = {
     "admin": {
         "username": settings.ADMIN_USERNAME,
@@ -127,76 +122,46 @@ SAMPLE_SERVICES = {
     }
 }
 
+
 def initialize_database():
-    """Initialize MongoDB with sample data"""
+    """Create tables and seed initial data if empty (MySQL)."""
     try:
-        users_collection = get_sync_users_collection()
-        services_collection = get_sync_services_collection()
-        
-        # Clear existing data
-        users_collection.delete_many({})
-        services_collection.delete_many({})
-        
-        # Insert sample users
-        for username, user_data in SAMPLE_USERS.items():
-            users_collection.update_one(
-                {"username": username},
-                {"$set": user_data},
-                upsert=True
-            )
-        
-        # Insert sample services
-        for service_name, service_data in SAMPLE_SERVICES.items():
-            services_collection.update_one(
-                {"name": service_name},
-                {"$set": service_data},
-                upsert=True
-            )
-        
-        logger.info("Database initialized with sample data")
-        
+        # Create all tables
+        Base.metadata.create_all(bind=engine)
+
+        from sqlalchemy.orm import Session
+        with Session(bind=engine, future=True) as db:
+            # Seed users if none
+            existing_users = db.query(User).count()
+            if existing_users == 0:
+                for username, user_data in SAMPLE_USERS.items():
+                    db.add(User(
+                        user_id=user_data.get("user_id", username),
+                        username=user_data["username"],
+                        email=user_data["email"],
+                        hashed_password=user_data["hashed_password"],
+                        role=user_data.get("role", "user"),
+                        credits=user_data.get("credits", 0),
+                        btc_address=user_data.get("btc_address", ""),
+                        services=user_data.get("services", []),
+                        notifications=user_data.get("notifications", []),
+                        profile=user_data.get("profile", {}),
+                    ))
+                db.commit()
+
+            # Seed services if none
+            existing_services = db.query(Service).count()
+            if existing_services == 0:
+                for _, service_data in SAMPLE_SERVICES.items():
+                    db.add(Service(
+                        name=service_data["name"],
+                        image=service_data.get("image", ""),
+                        accounts=service_data.get("accounts", []),
+                        is_active=True,
+                    ))
+                db.commit()
+
+        logger.info("Database initialized with sample data (MySQL)")
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
         raise e
-
-# Legacy fake database access (for backward compatibility during transition)
-def get_fake_users_db():
-    """Get users from MongoDB (replaces fake_users_db)"""
-    try:
-        users_collection = get_sync_users_collection()
-        users = {}
-        for user in users_collection.find():
-            users[user["username"]] = user
-        return users
-    except Exception as e:
-        logger.error(f"Error getting users from MongoDB: {e}")
-        return {}
-
-def get_fake_services_db():
-    """Get services from MongoDB (replaces services_db)"""
-    try:
-        services_collection = get_sync_services_collection()
-        services = {}
-        for service in services_collection.find():
-            services[service["name"]] = service
-        return services
-    except Exception as e:
-        logger.error(f"Error getting services from MongoDB: {e}")
-        return {}
-
-def get_fake_refresh_tokens_db():
-    """Get refresh tokens from MongoDB (replaces refresh_tokens_db)"""
-    try:
-        tokens_collection = get_sync_refresh_tokens_collection()
-        tokens = {}
-        for token in tokens_collection.find():
-            tokens[token["username"]] = token["refresh_token"]
-        return tokens
-    except Exception as e:
-        logger.error(f"Error getting refresh tokens from MongoDB: {e}")
-        return {}
-
-# Export for backward compatibility
-fake_users_db = get_fake_users_db
-fake_services_db = get_fake_services_db
-fake_refresh_tokens_db = get_fake_refresh_tokens_db 
