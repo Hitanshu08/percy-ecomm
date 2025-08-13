@@ -69,14 +69,14 @@ export default function Admin() {
 
   const fetchData = async () => {
     try {
-      const [servicesRes, usersRes] = await Promise.all([
-        fetch('http://localhost:8000/admin/services', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        }),
-        fetch('http://localhost:8000/admin/users', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        })
-      ]);
+              const [servicesRes, usersRes] = await Promise.all([
+          fetch('https://www.api.webmixo.com/admin/services', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          }),
+          fetch('https://www.api.webmixo.com/admin/users', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          })
+        ]);
 
       if (servicesRes.ok) {
         const servicesData = await servicesRes.json();
@@ -104,7 +104,7 @@ export default function Admin() {
 
   const handleCreateService = async () => {
     try {
-      const response = await fetch('http://localhost:8000/admin/services', {
+      const response = await fetch('https://www.api.webmixo.com/admin/services', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -131,9 +131,9 @@ export default function Admin() {
     }
   };
 
-  const handleEditService = async (serviceName: string) => {
-    try {
-      const response = await fetch(`http://localhost:8000/admin/services/${serviceName}`, {
+      const handleEditService = async (serviceName: string) => {
+      try {
+        const response = await fetch(`https://www.api.webmixo.com/admin/services/${serviceName}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -162,9 +162,9 @@ export default function Admin() {
     }
   };
 
-  const startEditService = async (serviceName: string) => {
-    try {
-      const response = await fetch(`http://localhost:8000/admin/services/${serviceName}`, {
+      const startEditService = async (serviceName: string) => {
+      try {
+        const response = await fetch(`https://www.api.webmixo.com/admin/services/${serviceName}`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
 
@@ -196,7 +196,7 @@ export default function Admin() {
     if (!confirm(`Are you sure you want to delete ${serviceName}?`)) return;
 
     try {
-      const response = await fetch(`http://localhost:8000/admin/services/${serviceName}`, {
+              const response = await fetch(`https://www.api.webmixo.com/admin/services/${serviceName}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
@@ -222,7 +222,7 @@ export default function Admin() {
 
     setAddingSubscription(true);
     try {
-      const result = await callApi<any>('http://localhost:8000/admin/assign-subscription', {
+      const result = await callApi<any>('https://www.api.webmixo.com/admin/assign-subscription', {
         method: 'POST',
         body: JSON.stringify({
           username: selectedUser,
@@ -251,7 +251,7 @@ export default function Admin() {
     if (!username) return;
     try {
       setLoadingSubsFor(username);
-      const res = await fetch(`http://localhost:8000/admin/users/${encodeURIComponent(username)}/subscriptions`, {
+              const res = await fetch(`https://www.api.webmixo.com/admin/users/${encodeURIComponent(username)}/subscriptions`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       if (!res.ok) throw new Error(await res.text());
@@ -271,7 +271,7 @@ export default function Admin() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/admin/add-credits', {
+              const response = await fetch('https://www.api.webmixo.com/admin/add-credits', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     
     # API settings
     API_V1_STR: str = "/api/v1"
-    API_BASE_URL: str = "http://localhost:8000"
+    API_BASE_URL: str = "https://www.api.webmixo.com"
     LOG_LEVEL: str = "INFO"
     
     class Config:

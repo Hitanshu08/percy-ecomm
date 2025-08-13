@@ -33,18 +33,18 @@ def get_services():
         try:
             for service in db.query(ServiceModel).all():
                 available_accounts = []
-            
-            for account in (service.accounts or []):
-                if account["is_active"]:
-                    end_date = parse_date(account["end_date"])
-                    days_until_expiry = (end_date - today).days
-                    
-                    available_accounts.append({
-                        "id": account["id"],
-                        "days_until_expiry": days_until_expiry,
-                        "end_date": account["end_date"]
-                    })
-            
+                
+                for account in (service.accounts or []):
+                    if account["is_active"]:
+                        end_date = parse_date(account["end_date"])
+                        days_until_expiry = (end_date - today).days
+                        
+                        available_accounts.append({
+                            "id": account["id"],
+                            "days_until_expiry": days_until_expiry,
+                            "end_date": account["end_date"]
+                        })
+                
                 services.append({
                     "name": service.name,
                     "image": service.image,

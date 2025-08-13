@@ -11,11 +11,14 @@ logger = logging.getLogger(__name__)
 def assign_subscription(request: AdminAssignSubscription, current_user: User):
     """Assign subscription to user"""
     try:
+        logger.info(f"Assigning subscription to user: {request.username}, service: {request.service_name}, duration: {request.duration}")
         db = SessionLocal()
         try:
             user = db.query(UserModel).filter(UserModel.username == request.username).first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
+            
+            logger.info(f"Found user: {user.username}, current credits: {user.credits}, current services: {user.services}")
 
             # Allow two modes:
             # 1) Direct: service_id + end_date
@@ -87,19 +90,40 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
                 raise HTTPException(status_code=400, detail="Insufficient credits for assignment")
             user.credits -= cost_to_deduct
 
-            current_services = user.services or []
-            current_services.append({
+            # Handle JSON field properly - ensure it's a list
+            if user.services is None:
+                user.services = []
+            elif not isinstance(user.services, list):
+                user.services = []
+            
+            new_subscription = {
                 "service_id": service_id,
                 "end_date": end_date,
                 "is_active": True,
-            })
-            user.services = current_services
+            }
+            
+            # Create a new list to ensure proper JSON serialization
+            updated_services = list(user.services)
+            updated_services.append(new_subscription)
+            user.services = updated_services
+            
+            logger.info(f"Updated user services: {user.services}")
+            logger.info(f"Deducting {cost_to_deduct} credits from user {user.username}")
+            
+            # Flush changes to ensure they're written to the database
+            db.flush()
             db.commit()
-            return {"message": f"Assigned subscription to {request.username}", "credits": user.credits, "cost": cost_to_deduct}
+            db.refresh(user)  # Refresh the user object to get updated data
+            logger.info(f"Successfully committed subscription assignment for user {user.username}")
+            logger.info(f"Final user services after refresh: {user.services}")
+            
+            return {"message": f"Assigned subscription to {request.username}", "credits": user.credits, "cost": cost_to_deduct, "service_name": request.service_name, "assigned_account_id": service_id, "account_expiry_days": days, "credits_deducted": cost_to_deduct, "remaining_credits": user.credits}
         finally:
             db.close()
     except Exception as e:
         logger.error(f"Error assigning subscription: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 def add_credits_to_user(request: AdminAddCredits, current_user: User):

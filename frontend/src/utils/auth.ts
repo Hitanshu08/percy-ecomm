@@ -7,7 +7,7 @@ export const refreshAccessToken = async (): Promise<string | null> => {
       return null;
     }
 
-    const response = await fetch('http://localhost:8000/refresh', {
+    const response = await fetch('https://www.api.webmixo.com/refresh', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -61,9 +61,9 @@ The application uses environment variables for configuration. Key settings:
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-2. The API will be available at `http://localhost:8000`
+2. The API will be available at `https://www.api.webmixo.com`
 
-3. API documentation will be available at `http://localhost:8000/docs`
+3. API documentation will be available at `https://www.api.webmixo.com/docs`
 
 ## Database
 
@@ -117,7 +117,7 @@ The application follows a modular structure:
 To test the API:
 
 1. Start the server
-2. Visit `http://localhost:8000/docs` for interactive API documentation
+2. Visit `https://www.api.webmixo.com/docs` for interactive API documentation
 3. Use the provided sample data for testing:
    - Admin: `admin` / `adminpass123`
    - Test user: `testuser` / `userpass123`
