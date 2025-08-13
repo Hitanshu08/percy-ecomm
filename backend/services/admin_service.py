@@ -227,20 +227,51 @@ def update_service(service_name: str, service_data: dict, current_user: User):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 def delete_service(service_name: str, current_user: User):
-    """Delete a service"""
+    """Delete a service and remove it from all users' subscriptions"""
     try:
         db = SessionLocal()
         try:
             service = db.query(ServiceModel).filter(ServiceModel.name == service_name).first()
             if not service:
                 raise HTTPException(status_code=404, detail="Service not found")
+            
+            # Get all account IDs for this service
+            service_account_ids = set()
+            for account in (service.accounts or []):
+                service_account_ids.add(account.get("id"))
+            
+            logger.info(f"Deleting service '{service_name}' with account IDs: {service_account_ids}")
+            
+            # Remove this service from all users' subscriptions
+            users_updated = 0
+            for user in db.query(UserModel).all():
+                if user.services and isinstance(user.services, list):
+                    original_count = len(user.services)
+                    # Filter out subscriptions that belong to this service
+                    user.services = [
+                        sub for sub in user.services 
+                        if sub.get("service_id") not in service_account_ids
+                    ]
+                    new_count = len(user.services)
+                    if original_count != new_count:
+                        users_updated += 1
+                        logger.info(f"Removed {original_count - new_count} subscriptions from user {user.username}")
+            
+            # Delete the service
             db.delete(service)
             db.commit()
-            return {"message": f"Service {service_name} deleted successfully"}
+            
+            return {
+                "message": f"Service {service_name} deleted successfully",
+                "users_updated": users_updated,
+                "account_ids_removed": list(service_account_ids)
+            }
         finally:
             db.close()
     except Exception as e:
         logger.error(f"Error deleting service: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 def get_service_details(service_name: str, current_user: User):

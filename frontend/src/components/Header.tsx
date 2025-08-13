@@ -98,9 +98,23 @@ export default function Header() {
             {/* Logo/Brand - Centered on mobile, left on desktop */}
             <div className="flex items-center lg:flex-1 lg:justify-start">
               <Link to="/dashboard" className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">P</span>
-                </div>
+                <img 
+                  src="/public/percy_ecomm_logo.png" 
+                  alt="Percy Logo" 
+                  className="h-8 w-auto"
+                  onError={(e) => {
+                    // Fallback to text logo if image fails to load
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent) {
+                      const fallback = document.createElement('div');
+                      fallback.className = 'w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center';
+                      fallback.innerHTML = '<span class="text-white font-bold text-sm">P</span>';
+                      parent.insertBefore(fallback, target);
+                    }
+                  }}
+                />
                 <span className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                   Percy
                 </span>
@@ -231,7 +245,23 @@ export default function Header() {
             <div className={`flex items-center justify-between p-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">P</span>
+                <img 
+                  src="/public/percy_ecomm_logo.png" 
+                  alt="Percy Logo" 
+                  className="h-8 w-auto"
+                  onError={(e) => {
+                    // Fallback to text logo if image fails to load
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent) {
+                      const fallback = document.createElement('div');
+                      fallback.className = 'w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center';
+                      fallback.innerHTML = '<span class="text-white font-bold text-sm">P</span>';
+                      parent.insertBefore(fallback, target);
+                    }
+                  }}
+                />
                 </div>
                 <span className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                   Percy

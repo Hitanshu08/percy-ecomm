@@ -193,7 +193,7 @@ export default function Admin() {
   };
 
   const handleDeleteService = async (serviceName: string) => {
-    if (!confirm(`Are you sure you want to delete ${serviceName}?`)) return;
+    if (!confirm(`Are you sure you want to delete ${serviceName}? This will also remove all user subscriptions to this service.`)) return;
 
     try {
               const response = await fetch(`https://www.api.webmixo.com/admin/services/${serviceName}`, {
@@ -202,8 +202,17 @@ export default function Admin() {
       });
 
       if (response.ok) {
-        alert('Service deleted successfully!');
-        fetchData();
+        const result = await response.json();
+        const message = `Service deleted successfully!\n\n${result.message}\nUsers updated: ${result.users_updated || 0}\nAccount IDs removed: ${result.account_ids_removed?.join(', ') || 'None'}`;
+        alert(message);
+        
+        // Refresh data and update any expanded user subscriptions
+        await fetchData();
+        
+        // If any user has expanded subscriptions, refresh them to show updated data
+        if (expandedUser && subsByUser[expandedUser]) {
+          await fetchUserSubscriptions(expandedUser);
+        }
       } else {
         const error = await response.text();
         alert(`Error: ${error}`);
