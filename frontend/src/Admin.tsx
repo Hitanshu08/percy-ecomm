@@ -3,6 +3,7 @@ import { useAuth } from './contexts/AuthContext';
 import { useTheme } from './contexts/ThemeContext';
 import { getServices, createService, updateService, deleteService, adminAddSubscription } from './api';
 import { useApi } from './hooks/useApi';
+import { config } from './config';
 
 interface ServiceAccount {
   id: string;
@@ -21,11 +22,15 @@ interface User {
   username: string;
   email: string;
   role: string;
-  credits: number;
+  credits?: number;
+  global_credits?: number;
+  subscription_credits?: number;
+  total_credits?: number;
   services: Array<{
     service_id: string;
     end_date: string;
     is_active: boolean;
+    credits?: number;
   }>;
 }
 
@@ -60,12 +65,49 @@ export default function Admin() {
   // Credit management state
   const [creditUser, setCreditUser] = useState<string>('');
   const [creditAmount, setCreditAmount] = useState<number>(0);
+  const [selectedSubscription, setSelectedSubscription] = useState<string>('');
   const [earningRate, setEarningRate] = useState('');
   const [conversionRate, setConversionRate] = useState('');
+  
+  // Service credit preview
+  const [serviceCreditPreview, setServiceCreditPreview] = useState<number | null>(null);
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Service credit configuration (matching backend config)
+  const serviceCredits = {
+    "Quillbot": {
+      "7days": 100,
+      "1month": 500,
+      "3months": 1200,
+      "6months": 2000,
+      "1year": 3500
+    },
+    "Grammarly": {
+      "7days": 80,
+      "1month": 400,
+      "3months": 1000,
+      "6months": 1800,
+      "1year": 3000
+    },
+    "ChatGPT": {
+      "7days": 150,
+      "1month": 600,
+      "3months": 1500,
+      "6months": 2500,
+      "1year": 4500
+    }
+  };
+
+  const getServiceCreditsForDuration = (serviceName: string, duration: string): number => {
+    const service = serviceCredits[serviceName as keyof typeof serviceCredits];
+    if (service && duration in service) {
+      return (service as any)[duration];
+    }
+    return 0;
+  };
 
   const fetchData = async () => {
     try {
@@ -240,7 +282,8 @@ export default function Admin() {
         })
       });
 
-      alert(`Success! ${result.message}\nCredits deducted: ${result.cost ?? 'N/A'}\nRemaining credits: ${result.credits ?? 'N/A'}`);
+      const message = `Success! ${result.message}`;
+      alert(message);
       if (selectedUser && expandedUser === selectedUser) {
         await fetchUserSubscriptions(selectedUser);
       }
@@ -253,6 +296,81 @@ export default function Admin() {
       alert('Failed to add subscription. Please try again.');
     } finally {
       setAddingSubscription(false);
+    }
+  };
+
+  const handleRemoveCredits = async () => {
+    if (!creditUser || creditAmount <= 0) {
+      alert('Please enter valid user and credit amount');
+      return;
+    }
+
+    try {
+      const requestBody: any = {
+        username: creditUser,
+        credits: creditAmount
+      };
+
+      if (selectedSubscription) {
+        requestBody.service_id = selectedSubscription;
+      }
+
+      const response = await fetch('https://www.api.webmixo.com/admin/remove-credits', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (response.ok) {
+        const message = selectedSubscription 
+          ? `Removed ${creditAmount} credits from subscription ${selectedSubscription} for ${creditUser}`
+          : `Removed ${creditAmount} credits from ${creditUser}`;
+        alert(message);
+        setCreditUser('');
+        setSelectedSubscription('');
+        setCreditAmount(0);
+        fetchData();
+      } else {
+        const error = await response.text();
+        alert(`Error: ${error}`);
+      }
+    } catch (error) {
+      console.error('Error removing credits:', error);
+      alert('Error removing credits');
+    }
+  };
+
+  const handleRemoveCreditsForSubscription = async (username: string, serviceId: string) => {
+    try {
+      const input = window.prompt(`Enter credits to remove from subscription ${serviceId} for ${username}`);
+      if (!input) return;
+      const amount = Number(input);
+      if (isNaN(amount) || amount <= 0) {
+        alert('Please enter a valid positive number');
+        return;
+      }
+      const response = await fetch('https://www.api.webmixo.com/admin/remove-credits', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ username, credits: amount, service_id: serviceId })
+      });
+      if (response.ok) {
+        alert(`Removed ${amount} credits from ${username}'s subscription ${serviceId}`);
+        await fetchUserSubscriptions(username);
+        fetchData();
+      } else {
+        const error = await response.text();
+        alert(`Error: ${error}`);
+      }
+    } catch (e) {
+      console.error('Error removing credits from subscription', e);
+      alert('Error removing credits');
     }
   };
 
@@ -280,21 +398,33 @@ export default function Admin() {
     }
 
     try {
-              const response = await fetch('https://www.api.webmixo.com/admin/add-credits', {
+      const requestBody: any = {
+        username: creditUser,
+        credits: creditAmount
+      };
+
+      // If a subscription is selected, add it to the request
+      if (selectedSubscription) {
+        requestBody.service_id = selectedSubscription;
+      }
+
+      const response = await fetch('https://www.api.webmixo.com/admin/add-credits', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify({
-          username: creditUser,
-          credits: creditAmount
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (response.ok) {
-        alert('Credits added successfully!');
+        const result = await response.json();
+        const message = selectedSubscription 
+          ? `Added ${creditAmount} credits to subscription ${selectedSubscription} for ${creditUser}`
+          : `Added ${creditAmount} credits to ${creditUser}`;
+        alert(message);
         setCreditUser('');
+        setSelectedSubscription('');
         setCreditAmount(0);
         fetchData();
       } else {
@@ -554,6 +684,7 @@ export default function Admin() {
                         >
                           Edit
                         </button>
+                        {/* Edit Credits hidden for now */}
                         <button
                           onClick={() => handleDeleteService(service.name)}
                           className="flex-1 px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
@@ -579,11 +710,11 @@ export default function Admin() {
               </h2>
               <div className="mb-6">
                 {/* <h3 className="text-lg font-semibold mb-4">Assign Subscription</h3> */}
-                <div className="flex gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <select
                     value={selectedUser}
                     onChange={(e) => setSelectedUser(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
                   >
                     <option value="">Select User</option>
                     {(users || []).map((user) => (
@@ -594,8 +725,17 @@ export default function Admin() {
                   </select>
                   <select
                     value={selectedService}
-                    onChange={(e) => setSelectedService(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                    onChange={(e) => {
+                      setSelectedService(e.target.value);
+                      // Update credit preview
+                      if (e.target.value && selectedDuration) {
+                        const credits = getServiceCreditsForDuration(e.target.value, selectedDuration);
+                        setServiceCreditPreview(credits);
+                      } else {
+                        setServiceCreditPreview(null);
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
                   >
                     <option value="">Select Service</option>
                     {(services || []).map((service) => (
@@ -606,8 +746,17 @@ export default function Admin() {
                   </select>
                   <select
                     value={selectedDuration}
-                    onChange={(e) => setSelectedDuration(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                    onChange={(e) => {
+                      setSelectedDuration(e.target.value);
+                      // Update credit preview
+                      if (selectedService && e.target.value) {
+                        const credits = getServiceCreditsForDuration(selectedService, e.target.value);
+                        setServiceCreditPreview(credits);
+                      } else {
+                        setServiceCreditPreview(null);
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
                   >
                     <option value="7days">7 Days</option>
                     <option value="1month">1 Month</option>
@@ -616,6 +765,15 @@ export default function Admin() {
                     <option value="1year">1 Year</option>
                   </select>
                 </div>
+                
+                {/* Credit Preview */}
+                {serviceCreditPreview !== null && selectedService && selectedDuration && (
+                  <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      <strong>Credit Preview:</strong> {selectedService} for {selectedDuration} will be assigned <strong>{serviceCreditPreview} credits</strong>
+                    </p>
+                  </div>
+                )}
                 <button
                   onClick={handleAddSubscription}
                   disabled={addingSubscription}
@@ -642,7 +800,7 @@ export default function Admin() {
                               {user.username}
                             </h3>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {user.email} • {user.role} • {user.credits} credits • {user.services.length} subscriptions
+                              {user.email} • {user.role} • {user.total_credits || user.credits} total credits • {user.services.length} subscriptions
                             </p>
                           </div>
                           <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -679,11 +837,12 @@ export default function Admin() {
                               <div className="space-y-2">
                                 {subsByUser[user.username].subscriptions.map((s: any, idx: number) => (
                                   <div key={idx} className="p-2 border border-gray-200 dark:border-gray-700 rounded">
-                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
+                                    <div className="grid grid-cols-1 md:grid-cols-5 gap-2 text-sm">
                                       <div><span className="font-medium">Service:</span> {s.service_name}</div>
                                       <div><span className="font-medium">Account:</span> {s.account_id}</div>
                                       <div><span className="font-medium">End Date:</span> {s.end_date}</div>
                                       <div><span className="font-medium">Active:</span> {s.is_active ? 'Yes' : 'No'}</div>
+                                      <div />
                                     </div>
                                   </div>
                                 ))}
@@ -737,18 +896,21 @@ export default function Admin() {
             {/* Add Credits Form */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Add Credits to User
+                Manage Credits
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <select
                   value={creditUser}
-                  onChange={(e) => setCreditUser(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                  onChange={(e) => {
+                    setCreditUser(e.target.value);
+                    setSelectedSubscription(''); // Reset subscription selection when user changes
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
                 >
                   <option value="">Select User</option>
                   {(users || []).map((user) => (
                     <option key={user.username} value={user.username}>
-                      {user.username} ({user.role}) - Current: {user.credits} credits
+                      {user.username} ({user.role}) - Total: {user.total_credits || user.credits || 0} credits
                     </option>
                   ))}
                 </select>
@@ -757,15 +919,23 @@ export default function Admin() {
                   placeholder="Credit Amount"
                   value={creditAmount}
                   onChange={(e) => setCreditAmount(Number(e.target.value))}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
                 />
               </div>
-              <button
-                onClick={handleAddCredits}
-                className="mt-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-              >
-                Add Credits
-              </button>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  onClick={handleAddCredits}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                >
+                  Add Credits
+                </button>
+                <button
+                  onClick={handleRemoveCredits}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                >
+                  Remove Credits
+                </button>
+              </div>
             </div>
 
             {/* Credit System Info */}
@@ -774,10 +944,16 @@ export default function Admin() {
                 Credit System Information
               </h2>
               <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                <p>• Admin starts with 100,000 credits</p>
-                <p>• Users earn 100 credits per day per active service</p>
-                <p>• Credit conversion rate: 10 credits per currency unit</p>
-                <p>• Subscription costs vary by duration</p>
+                <p>• Credits are automatically assigned based on service and duration</p>
+                <p>• Each service has different credit amounts for different durations</p>
+                <p>• Credits are managed per subscription</p>
+                <p>• Total credits = Global credits + Sum of all subscription credits</p>
+                <p>• Admin can add additional credits to specific subscriptions or globally</p>
+                <br />
+                <p><strong>Service Credit Examples:</strong></p>
+                <p>• Quillbot: 100 (7d) → 3500 (1y)</p>
+                <p>• Grammarly: 80 (7d) → 3000 (1y)</p>
+                <p>• ChatGPT: 150 (7d) → 4500 (1y)</p>
               </div>
             </div>
           </div>

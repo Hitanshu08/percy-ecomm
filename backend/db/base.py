@@ -16,9 +16,9 @@ SAMPLE_USERS = {
         "hashed_password": get_password_hash(settings.ADMIN_PASSWORD),
         "role": settings.ADMIN_ROLE,
         "services": [
-            {"service_id": "qb1", "end_date": "31/12/2025", "is_active": True},
-            {"service_id": "gram1", "end_date": "31/12/2025", "is_active": True},
-            {"service_id": "chat1", "end_date": "31/10/2025", "is_active": True}
+            {"service_id": "qb1", "end_date": "31/12/2025", "is_active": True, "credits": 3500},  # 1 year Quillbot
+            {"service_id": "gram1", "end_date": "31/12/2025", "is_active": True, "credits": 3000},  # 1 year Grammarly
+            {"service_id": "chat1", "end_date": "31/10/2025", "is_active": True, "credits": 4500}   # 1 year ChatGPT
         ],
         "credits": 100000,
         "btc_address": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
@@ -47,7 +47,7 @@ SAMPLE_USERS = {
         "hashed_password": get_password_hash("userpass123"),
         "role": "user",
         "services": [
-            {"service_id": "qb1", "end_date": "31/12/2025", "is_active": True}
+            {"service_id": "qb1", "end_date": "31/12/2025", "is_active": True, "credits": 500}  # 1 month Quillbot
         ],
         "credits": 500,
         "btc_address": "btc-testuser",
@@ -72,8 +72,8 @@ SAMPLE_USERS = {
         "hashed_password": get_password_hash("premium123"),
         "role": "user",
         "services": [
-            {"service_id": "qb2", "end_date": "30/11/2025", "is_active": True},
-            {"service_id": "chat1", "end_date": "31/10/2025", "is_active": True}
+            {"service_id": "qb2", "end_date": "30/11/2025", "is_active": True, "credits": 1200},  # 3 months Quillbot
+            {"service_id": "chat1", "end_date": "31/10/2025", "is_active": True, "credits": 1500}   # 3 months ChatGPT
         ],
         "credits": 2500,
         "btc_address": "bc1qpremiumuser123456789",

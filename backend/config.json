@@ -24,9 +24,9 @@
   },
   "credits": {
     "credit_rate": 10,
-    "daily_credit_rate": 100,
+    "daily_credit_rate": 1,
     "admin_starting_credits": 100000,
-    "usd_to_credits_rate": 100
+    "usd_to_credits_rate": 1
   },
   "subscription_durations": {
     "7days": {
@@ -53,6 +53,29 @@
       "name": "1 Year",
       "days": 365,
       "credits_cost": 1500
+    }
+  },
+  "service_credits": {
+    "Quillbot": {
+      "7days": 100,
+      "1month": 500,
+      "3months": 1200,
+      "6months": 2000,
+      "1year": 3500
+    },
+    "Grammarly": {
+      "7days": 80,
+      "1month": 400,
+      "3months": 1000,
+      "6months": 1800,
+      "1year": 3000
+    },
+    "ChatGPT": {
+      "7days": 150,
+      "1month": 600,
+      "3months": 1500,
+      "6months": 2500,
+      "1year": 4500
     }
   },
   "api": {

@@ -28,7 +28,7 @@ def create_user(user: UserCreate):
                 hashed_password=hashed_password,
                 role="user",
                 services=[],
-                credits=100,
+                credits=0,
                 btc_address=f"btc-{user.username}",
                 notifications=["Welcome to Percy E-commerce!"],
                 profile={

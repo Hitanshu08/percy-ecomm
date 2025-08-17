@@ -233,24 +233,21 @@ export default function Subscriptions() {
                           {/* Account ID */}
                           <div>
                             <label className="block text-sm font-medium mb-1">Account ID</label>
-                            <div className="flex items-center space-x-2">
+                            <div className="flex items-center gap-2">
                               <input
                                 type="text"
                                 value={subscription.account_id}
                                 readOnly
-                                className={`flex-1 px-3 py-2 rounded border transition-colors ${
-                                  theme === 'dark' 
-                                    ? 'border-gray-600 bg-gray-700 text-white' 
+                                className={`basis-0 min-w-0 grow px-3 py-2 rounded border truncate select-all ${
+                                  theme === 'dark'
+                                    ? 'border-gray-600 bg-gray-700 text-white'
                                     : 'border-gray-300 bg-gray-50 text-gray-900'
                                 }`}
+                                aria-label="Account ID"
                               />
                               <button
                                 onClick={() => copyToClipboard(subscription.account_id, 'Account ID')}
-                                className={`px-3 py-2 rounded transition-colors ${
-                                  theme === 'dark' 
-                                    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                                }`}
+                                className="shrink-0 px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white"
                                 title="Copy Account ID"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -269,12 +266,13 @@ export default function Subscriptions() {
                                   type={showPasswords[subscription.account_id] ? "text" : "password"}
                                   value={subscription.password}
                                   readOnly
-                                  className={`w-full px-3 py-2 pr-10 rounded border transition-colors ${
-                                    theme === 'dark' 
-                                      ? 'border-gray-600 bg-gray-700 text-white' 
-                                      : 'border-gray-300 bg-gray-50 text-gray-900'
+                                  className={`w-full min-w-0 px-3 py-2 pr-10 rounded border truncate ${
+                                    theme === "dark"
+                                      ? "border-gray-600 bg-gray-700 text-white"
+                                      : "border-gray-300 bg-gray-50 text-gray-900"
                                   }`}
                                 />
+
                                 <button
                                   onClick={() => togglePassword(subscription.account_id)}
                                   className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"

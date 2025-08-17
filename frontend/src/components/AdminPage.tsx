@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { getServices, createService, updateService, deleteService, adminAddSubscription, getAdminUserSubscriptions } from '../api';
+import { getServices, createService, updateService, deleteService, adminAddSubscription, getAdminUserSubscriptions, getServiceCredits, putServiceCredits } from '../api';
 import { config } from '../config';
 
 interface ServiceAccount {
@@ -148,6 +148,58 @@ export default function AdminPage() {
       setUserSubs(subs);
     } catch (err: any) {
       setError(err.message || 'Failed to add subscription');
+    }
+  };
+
+  const handleRemoveCreditsForSubscription = async (username: string, serviceId: string) => {
+    try {
+      const input = window.prompt(`Enter credits to remove from subscription ${serviceId} for ${username}`);
+      if (!input) return;
+      const amount = Number(input);
+      if (isNaN(amount) || amount <= 0) {
+        setError('Please enter a valid positive number');
+        return;
+      }
+      const res = await fetch(`${config.getApiUrl()}/admin/remove-credits`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ username, credits: amount, service_id: serviceId })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setSuccess(`Removed ${amount} credits from ${username}'s subscription ${serviceId}`);
+      const subs = await getAdminUserSubscriptions(username);
+      setUserSubs(subs);
+    } catch (err: any) {
+      setError(err.message || 'Failed to remove credits');
+    }
+  };
+
+  const handleRemoveCreditsGlobal = async (username: string) => {
+    try {
+      const input = window.prompt(`Enter credits to remove from ${username}'s global credits`);
+      if (!input) return;
+      const amount = Number(input);
+      if (isNaN(amount) || amount <= 0) {
+        setError('Please enter a valid positive number');
+        return;
+      }
+      const res = await fetch(`${config.getApiUrl()}/admin/remove-credits`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ username, credits: amount })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setSuccess(`Removed ${amount} global credits from ${username}`);
+      const subs = await getAdminUserSubscriptions(username);
+      setUserSubs(subs);
+    } catch (err: any) {
+      setError(err.message || 'Failed to remove global credits');
     }
   };
 
@@ -382,6 +434,7 @@ export default function AdminPage() {
                       >
                         Edit
                       </button>
+                      {/* Edit Credits feature hidden for now */}
                       <button
                         onClick={() => handleDelete(service.name)}
                         className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
@@ -508,11 +561,20 @@ export default function AdminPage() {
                 ) : (
                   userSubs.subscriptions.map((s: any, idx: number) => (
                     <div key={idx} className={`p-3 rounded border ${theme === 'dark' ? 'border-gray-600 bg-gray-700' : 'border-gray-300 bg-gray-50'}`}>
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
+                      <div className="grid grid-cols-1 md:grid-cols-5 gap-2 text-sm">
                         <div><span className="font-medium">Service:</span> {s.service_name}</div>
                         <div><span className="font-medium">Account:</span> {s.account_id}</div>
                         <div><span className="font-medium">End Date:</span> {s.end_date}</div>
                         <div><span className="font-medium">Active:</span> {s.is_active ? 'Yes' : 'No'}</div>
+                        <div className="flex items-center justify-between">
+                          <span><span className="font-medium">Credits:</span> {s.credits || 0}</span>
+                          <button
+                            onClick={() => handleRemoveCreditsForSubscription(userSubs.username, s.account_id)}
+                            className={`ml-3 px-2 py-1 rounded text-xs font-medium transition-colors ${theme === 'dark' ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white'}`}
+                          >
+                            Remove Credits
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))

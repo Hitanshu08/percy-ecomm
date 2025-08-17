@@ -111,7 +111,8 @@ class ConfigManager {
       admin_panel: true,
       user_profile: true,
       password_change: true,
-      contact_page: true
+      contact_page: true,
+      shop: false
     };
     return features[feature] || false;
   }

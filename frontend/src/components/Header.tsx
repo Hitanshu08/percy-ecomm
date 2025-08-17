@@ -66,6 +66,9 @@ export default function Header() {
       if (item.path === '/contact' && !config.isFeatureEnabled('contact_page')) {
         return false;
       }
+      if (item.path === '/shop' && !config.isFeatureEnabled('shop')) {
+        return false;
+      }
       return true;
     }),
     ...(user?.role === 'admin' && config.isFeatureEnabled('admin_panel') 

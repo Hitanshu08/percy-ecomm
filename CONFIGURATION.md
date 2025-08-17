@@ -42,9 +42,9 @@ Contains static application settings:
   },
   "credits": {
     "credit_rate": 10,
-    "daily_credit_rate": 100,
+    "daily_credit_rate": 1,
     "admin_starting_credits": 100000,
-    "usd_to_credits_rate": 100
+    "usd_to_credits_rate": 1
   },
   "subscription_durations": {
     "7days": {
@@ -176,9 +176,9 @@ Contains static application settings:
   },
   "credits": {
     "credit_rate": 10,
-    "daily_credit_rate": 100,
+    "daily_credit_rate": 1,
     "admin_starting_credits": 100000,
-    "usd_to_credits_rate": 100
+    "usd_to_credits_rate": 1
   },
   "subscription_durations": {
     "7days": {

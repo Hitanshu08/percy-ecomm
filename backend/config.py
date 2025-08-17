@@ -51,6 +51,21 @@ class Config:
         """Get subscription durations configuration"""
         return self._config.get("subscription_durations", {})
     
+    def get_service_credits(self) -> Dict[str, Any]:
+        """Get service credits configuration"""
+        return self._config.get("service_credits", {})
+    
+    def get_service_credits_for_duration(self, service_name: str, duration: str) -> int:
+        """Get credits for a specific service and duration"""
+        service_credits = self.get_service_credits()
+        if service_name in service_credits and duration in service_credits[service_name]:
+            return service_credits[service_name][duration]
+        # Fallback to default credits based on duration
+        durations = self.get_subscription_durations()
+        if duration in durations:
+            return durations[duration].get("credits_cost", 0)
+        return 0
+    
     def get_api_config(self) -> Dict[str, Any]:
         """Get API configuration"""
         return self._config.get("api", {})
@@ -66,6 +81,22 @@ class Config:
     def get_all(self) -> Dict[str, Any]:
         """Get all configuration"""
         return self._config.copy()
+
+    def set_service_credits(self, service_credits: Dict[str, Any]):
+        """Set per-service credits configuration and persist to disk"""
+        self._config["service_credits"] = service_credits
+        self._save_config()
+
+    def set_subscription_durations(self, subscription_durations: Dict[str, Any]):
+        """Set subscription durations configuration and persist to disk"""
+        self._config["subscription_durations"] = subscription_durations
+        self._save_config()
+
+    def _save_config(self):
+        """Persist current configuration to JSON file"""
+        config_path = Path(__file__).parent / self.config_file
+        with open(config_path, 'w') as f:
+            json.dump(self._config, f, indent=2)
 
 # Global configuration instance
 config = Config() 

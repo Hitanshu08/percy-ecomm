@@ -11,36 +11,36 @@
     "retry_delay": 1000
   },
   "credits": {
-    "credit_rate": 10,
-    "daily_credit_rate": 100,
-    "admin_starting_credits": 100000,
-    "usd_to_credits_rate": 100
+    "credit_rate": 1,
+    "daily_credit_rate": 1,
+    "admin_starting_credits": 10000,
+    "usd_to_credits_rate": 1
   },
   "subscription_durations": {
     "7days": {
       "name": "7 Days",
       "days": 7,
-      "credits_cost": 50
+      "credits_cost": 1
     },
     "1month": {
       "name": "1 Month",
       "days": 30,
-      "credits_cost": 200
+      "credits_cost": 2
     },
     "3months": {
       "name": "3 Months",
       "days": 90,
-      "credits_cost": 500
+      "credits_cost": 5
     },
     "6months": {
       "name": "6 Months",
       "days": 180,
-      "credits_cost": 900
+      "credits_cost": 9
     },
     "1year": {
       "name": "1 Year",
       "days": 365,
-      "credits_cost": 1500
+      "credits_cost": 15
     }
   },
   "contact": {

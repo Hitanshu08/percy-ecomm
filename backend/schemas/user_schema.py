@@ -45,6 +45,12 @@ class CreditDeposit(BaseModel):
 class AdminAddCredits(BaseModel):
     username: str
     credits: int
+    service_id: Optional[str] = None  # If provided, add credits to specific subscription
+
+class AdminRemoveCredits(BaseModel):
+    username: str
+    credits: int
+    service_id: Optional[str] = None  # If provided, remove credits from specific subscription
 
 class AdminAssignSubscription(BaseModel):
     username: str

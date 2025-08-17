@@ -349,6 +349,17 @@ export async function updateService(serviceName: string, serviceData: {
   });
 }
 
+export async function getServiceCredits(serviceName: string) {
+  return apiCall(`${API_URL}/admin/services/${serviceName}/credits`);
+}
+
+export async function putServiceCredits(serviceName: string, creditsMap: Record<string, number>) {
+  return apiCall(`${API_URL}/admin/services/${serviceName}/credits`, {
+    method: 'PUT',
+    body: JSON.stringify(creditsMap)
+  });
+}
+
 export async function deleteService(serviceName: string) {
   return apiCall(`${API_URL}/admin/services/${serviceName}`, {
     method: 'DELETE'

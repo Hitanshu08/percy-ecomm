@@ -5,6 +5,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { useAuth } from "./contexts/AuthContext";
 import { useTheme } from "./contexts/ThemeContext";
 import AuthPage from "./components/AuthPage";
+import { config } from "./config";
 import Header from "./components/Header";
 import Dashboard from "./Dashboard";
 import UserPage from "./UserPage";
@@ -58,7 +59,7 @@ function AppLayout() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/user" element={<UserPage />} />
           <Route path="/wallet" element={<Wallet />} />
-          <Route path="/shop" element={<Shop />} />
+          <Route path="/shop" element={config.isFeatureEnabled('shop') ? <Shop /> : <AccessDenied />} />
           <Route path="/subscriptions" element={<Subscriptions />} />
           <Route path="/contact" element={<ContactUs />} />
           <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />

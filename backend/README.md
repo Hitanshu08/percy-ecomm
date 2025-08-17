@@ -58,7 +58,7 @@ The application uses environment variables for configuration. Key settings:
 
 1. Start the development server:
 ```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --host 192.168.0.101 --port 8000
 ```
 
 2. The API will be available at `https://www.api.webmixo.com`

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
-from schemas.user_schema import AdminAssignSubscription, AdminAddCredits, User
+from schemas.user_schema import AdminAssignSubscription, AdminAddCredits, AdminRemoveCredits, User
 from api.dependencies import get_current_user, admin_required
-from services.admin_service import assign_subscription, add_credits_to_user, get_all_users, get_all_admin_services, add_service, update_service, delete_service, get_service_details, get_user_subscriptions_admin
+from services.admin_service import assign_subscription, add_credits_to_user, remove_credits_from_user, get_all_users, get_all_admin_services, add_service, update_service, delete_service, get_service_details, get_user_subscriptions_admin, update_service_credits, get_service_credits_admin
 
 router = APIRouter()
 
@@ -13,6 +13,9 @@ def assign_sub(request: AdminAssignSubscription, current_user: User = Depends(ad
 def add_credits(request: AdminAddCredits, current_user: User = Depends(admin_required)):
     return add_credits_to_user(request, current_user)
 
+@router.post("/admin/remove-credits")
+def remove_credits(request: AdminRemoveCredits, current_user: User = Depends(admin_required)):
+    return remove_credits_from_user(request, current_user)
 @router.get("/admin/users")
 def all_users(current_user: User = Depends(admin_required)):
     return get_all_users(current_user)
@@ -40,3 +43,11 @@ def get_admin_service_details(service_name: str, current_user: User = Depends(ad
 @router.get("/admin/users/{username}/subscriptions")
 def get_admin_user_subscriptions(username: str, current_user: User = Depends(admin_required)):
     return get_user_subscriptions_admin(username, current_user)
+
+@router.get("/admin/services/{service_name}/credits")
+def get_admin_service_credits(service_name: str, current_user: User = Depends(admin_required)):
+    return get_service_credits_admin(service_name, current_user)
+
+@router.put("/admin/services/{service_name}/credits")
+def put_admin_service_credits(service_name: str, credits_map: dict, current_user: User = Depends(admin_required)):
+    return update_service_credits(service_name, credits_map, current_user)

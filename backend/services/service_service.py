@@ -72,7 +72,6 @@ def purchase_subscription(request: SubscriptionPurchase, current_user: User):
             raise HTTPException(status_code=404, detail="User not found")
         
         # Get subscription cost from config
-        from core.config import config
         subscription_durations = config.get_subscription_durations()
         duration_config = subscription_durations.get(request.duration)
         

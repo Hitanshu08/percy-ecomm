@@ -1,4 +1,4 @@
-from schemas.user_schema import AdminAssignSubscription, AdminAddCredits, User
+from schemas.user_schema import AdminAssignSubscription, AdminAddCredits, AdminRemoveCredits, User
 from config import config
 from db.session import SessionLocal
 from db.models.user import User as UserModel
@@ -83,12 +83,14 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
             if not service_found:
                 raise HTTPException(status_code=404, detail="Service account not found")
 
-            # Deduct credits
-            if user.credits is None:
-                user.credits = 0
-            if user.credits < cost_to_deduct:
-                raise HTTPException(status_code=400, detail="Insufficient credits for assignment")
-            user.credits -= cost_to_deduct
+            # Deduct credits (feature-flagged; disabled for now)
+            deduct_enabled = config.get("features.admin_assign_deduct_credits", False)
+            if deduct_enabled:
+                if user.credits is None:
+                    user.credits = 0
+                if user.credits < cost_to_deduct:
+                    raise HTTPException(status_code=400, detail="Insufficient credits for assignment")
+                user.credits -= cost_to_deduct
 
             # Handle JSON field properly - ensure it's a list
             if user.services is None:
@@ -96,10 +98,14 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
             elif not isinstance(user.services, list):
                 user.services = []
             
+            # Get credits for this service and duration
+            service_credits = config.get_service_credits_for_duration(request.service_name, request.duration)
+            
             new_subscription = {
                 "service_id": service_id,
                 "end_date": end_date,
                 "is_active": True,
+                "credits": service_credits,  # Assign credits based on service and duration
             }
             
             # Create a new list to ensure proper JSON serialization
@@ -108,7 +114,8 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
             user.services = updated_services
             
             logger.info(f"Updated user services: {user.services}")
-            logger.info(f"Deducting {cost_to_deduct} credits from user {user.username}")
+            if deduct_enabled:
+                logger.info(f"Deducting {cost_to_deduct} credits from user {user.username}")
             
             # Flush changes to ensure they're written to the database
             db.flush()
@@ -117,7 +124,18 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
             logger.info(f"Successfully committed subscription assignment for user {user.username}")
             logger.info(f"Final user services after refresh: {user.services}")
             
-            return {"message": f"Assigned subscription to {request.username}", "credits": user.credits, "cost": cost_to_deduct, "service_name": request.service_name, "assigned_account_id": service_id, "account_expiry_days": days, "credits_deducted": cost_to_deduct, "remaining_credits": user.credits}
+            effective_cost = cost_to_deduct if deduct_enabled else 0
+            return {
+                "message": f"Assigned subscription to {request.username}",
+                "credits": user.credits,
+                "cost": effective_cost,
+                "service_name": request.service_name,
+                "assigned_account_id": service_id,
+                "account_expiry_days": days,
+                "credits_deducted": effective_cost,
+                "remaining_credits": user.credits,
+                "subscription_credits_assigned": service_credits
+            }
         finally:
             db.close()
     except Exception as e:
@@ -127,34 +145,106 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 def add_credits_to_user(request: AdminAddCredits, current_user: User):
-    """Add credits to a user"""
+    """Add credits to a user or specific subscription"""
     try:
         db = SessionLocal()
         try:
             user = db.query(UserModel).filter(UserModel.username == request.username).first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
-            user.credits = (user.credits or 0) + request.credits
-            db.commit()
-            return {"message": f"Added {request.credits} credits to {request.username}", "credits": user.credits}
+            
+            # If service_id is provided, add credits to that specific subscription
+            if hasattr(request, 'service_id') and request.service_id:
+                # Find the subscription and add credits to it
+                if user.services and isinstance(user.services, list):
+                    subscription_found = False
+                    for subscription in user.services:
+                        if subscription.get("service_id") == request.service_id:
+                            subscription["credits"] = (subscription.get("credits", 0) or 0) + request.credits
+                            subscription_found = True
+                            break
+                    
+                    if not subscription_found:
+                        raise HTTPException(status_code=404, detail="Subscription not found")
+                    
+                    db.commit()
+                    return {
+                        "message": f"Added {request.credits} credits to subscription {request.service_id} for {request.username}",
+                        "subscription_credits": subscription.get("credits", 0)
+                    }
+                else:
+                    raise HTTPException(status_code=400, detail="User has no subscriptions")
+            else:
+                # Add credits to user's global credits (legacy support)
+                user.credits = (user.credits or 0) + request.credits
+                db.commit()
+                return {"message": f"Added {request.credits} credits to {request.username}", "credits": user.credits}
         finally:
             db.close()
     except Exception as e:
         logger.error(f"Error adding credits: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+def remove_credits_from_user(request: AdminRemoveCredits, current_user: User):
+    """Remove credits from a user or specific subscription"""
+    try:
+        db = SessionLocal()
+        try:
+            user = db.query(UserModel).filter(UserModel.username == request.username).first()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            if hasattr(request, 'service_id') and request.service_id:
+                if user.services and isinstance(user.services, list):
+                    subscription_found = False
+                    for subscription in user.services:
+                        if subscription.get("service_id") == request.service_id:
+                            current = (subscription.get("credits", 0) or 0)
+                            new_value = max(0, current - request.credits)
+                            subscription["credits"] = new_value
+                            subscription_found = True
+                            break
+                    if not subscription_found:
+                        raise HTTPException(status_code=404, detail="Subscription not found")
+                    db.commit()
+                    return {
+                        "message": f"Removed {request.credits} credits from subscription {request.service_id} for {request.username}",
+                        "subscription_credits": subscription.get("credits", 0)
+                    }
+                else:
+                    raise HTTPException(status_code=400, detail="User has no subscriptions")
+            else:
+                # Remove from global credits
+                current = user.credits or 0
+                user.credits = max(0, current - request.credits)
+                db.commit()
+                return {"message": f"Removed {request.credits} credits from {request.username}", "credits": user.credits}
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error removing credits: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 def get_all_users(current_user: User):
-    """Get all users (admin only)"""
+    """Get all users (admin only) with per-subscription credits"""
     try:
         db = SessionLocal()
         try:
             users = []
             for user in db.query(UserModel).all():
+                # Calculate subscription credits
+                subscription_credits = 0
+                if user.services and isinstance(user.services, list):
+                    for subscription in user.services:
+                        subscription_credits += subscription.get("credits", 0) or 0
+                
                 users.append({
                     "username": user.username,
                     "email": user.email,
                     "role": user.role,
-                    "credits": user.credits,
+                    "global_credits": user.credits,
+                    "subscription_credits": subscription_credits,
+                    "total_credits": (user.credits or 0) + subscription_credits,
                     "services": user.services or [],
                 })
             return {"users": users}
@@ -181,6 +271,26 @@ def get_all_admin_services(current_user: User):
             db.close()
     except Exception as e:
         logger.error(f"Error getting all services: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+def update_service_credits(service_name: str, credits_map: dict, current_user: User):
+    """Update per-duration credits for a service in config"""
+    try:
+        svc_credits = config.get_service_credits() or {}
+        svc_credits[service_name] = credits_map
+        config.set_service_credits(svc_credits)
+        return {"message": f"Updated credits for {service_name}", "service_credits": svc_credits[service_name]}
+    except Exception as e:
+        logger.error(f"Error updating service credits: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+def get_service_credits_admin(service_name: str, current_user: User):
+    """Get per-duration credits for a service from config"""
+    try:
+        svc_credits = config.get_service_credits() or {}
+        return {"service_name": service_name, "credits": svc_credits.get(service_name, {})}
+    except Exception as e:
+        logger.error(f"Error getting service credits: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 def add_service(service_data: dict, current_user: User):
