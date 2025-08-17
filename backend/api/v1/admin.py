@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
-from schemas.user_schema import AdminAssignSubscription, AdminAddCredits, AdminRemoveCredits, User
+from schemas.user_schema import AdminAssignSubscription, AdminAddCredits, AdminRemoveCredits, AdminRemoveSubscription, AdminUpdateSubscriptionEndDate, User
 from api.dependencies import get_current_user, admin_required
-from services.admin_service import assign_subscription, add_credits_to_user, remove_credits_from_user, get_all_users, get_all_admin_services, add_service, update_service, delete_service, get_service_details, get_user_subscriptions_admin, update_service_credits, get_service_credits_admin
+from services.admin_service import assign_subscription, add_credits_to_user, remove_credits_from_user, remove_user_subscription, update_user_subscription_end_date, get_all_users, get_all_admin_services, add_service, update_service, delete_service, get_service_details, get_user_subscriptions_admin, update_service_credits, get_service_credits_admin
 
 router = APIRouter()
 
@@ -43,6 +43,14 @@ def get_admin_service_details(service_name: str, current_user: User = Depends(ad
 @router.get("/admin/users/{username}/subscriptions")
 def get_admin_user_subscriptions(username: str, current_user: User = Depends(admin_required)):
     return get_user_subscriptions_admin(username, current_user)
+
+@router.post("/admin/users/remove-subscription")
+def admin_remove_subscription(request: AdminRemoveSubscription, current_user: User = Depends(admin_required)):
+    return remove_user_subscription(request, current_user)
+
+@router.post("/admin/users/update-subscription-end-date")
+def admin_update_subscription_end_date(request: AdminUpdateSubscriptionEndDate, current_user: User = Depends(admin_required)):
+    return update_user_subscription_end_date(request, current_user)
 
 @router.get("/admin/services/{service_name}/credits")
 def get_admin_service_credits(service_name: str, current_user: User = Depends(admin_required)):

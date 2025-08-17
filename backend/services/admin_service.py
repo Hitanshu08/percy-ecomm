@@ -1,4 +1,4 @@
-from schemas.user_schema import AdminAssignSubscription, AdminAddCredits, AdminRemoveCredits, User
+from schemas.user_schema import AdminAssignSubscription, AdminAddCredits, AdminRemoveCredits, AdminRemoveSubscription, AdminUpdateSubscriptionEndDate, User
 from config import config
 from db.session import SessionLocal
 from db.models.user import User as UserModel
@@ -225,6 +225,55 @@ def remove_credits_from_user(request: AdminRemoveCredits, current_user: User):
         logger.error(f"Error removing credits: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+def remove_user_subscription(request: AdminRemoveSubscription, current_user: User):
+    """Remove a subscription from a user by service_id (account id)"""
+    try:
+        db = SessionLocal()
+        try:
+            user = db.query(UserModel).filter(UserModel.username == request.username).first()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            before = len(user.services or [])
+            if not user.services or not isinstance(user.services, list):
+                raise HTTPException(status_code=400, detail="User has no subscriptions")
+            user.services = [s for s in user.services if s.get("service_id") != request.service_id]
+            after = len(user.services)
+            if before == after:
+                raise HTTPException(status_code=404, detail="Subscription not found")
+            db.commit()
+            return {"message": f"Removed subscription {request.service_id} from {request.username}", "removed": before - after}
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error removing user subscription: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+def update_user_subscription_end_date(request: AdminUpdateSubscriptionEndDate, current_user: User):
+    """Update the end date of a user's subscription (expects dd/mm/yyyy)"""
+    try:
+        db = SessionLocal()
+        try:
+            user = db.query(UserModel).filter(UserModel.username == request.username).first()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            if not user.services or not isinstance(user.services, list):
+                raise HTTPException(status_code=400, detail="User has no subscriptions")
+            updated = False
+            for sub in user.services:
+                if sub.get("service_id") == request.service_id:
+                    sub["end_date"] = request.end_date
+                    updated = True
+                    break
+            if not updated:
+                raise HTTPException(status_code=404, detail="Subscription not found")
+            db.commit()
+            return {"message": f"Updated end date for {request.service_id} to {request.end_date}", "end_date": request.end_date}
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error updating subscription end date: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 def get_all_users(current_user: User):
     """Get all users (admin only) with per-subscription credits"""
     try:
@@ -434,6 +483,7 @@ def get_user_subscriptions_admin(username: str, current_user: User):
                         "password": acc.get("password", ""),
                         "end_date": sub.get("end_date"),
                         "is_active": sub.get("is_active", True),
+                        "credits": sub.get("credits", 0),
                     })
 
             return {"username": username, "credits": user.credits, "subscriptions": subscriptions}

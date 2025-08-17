@@ -112,7 +112,7 @@ class ConfigManager {
       user_profile: true,
       password_change: true,
       contact_page: true,
-      shop: false
+      shop: true
     };
     return features[feature] || false;
   }

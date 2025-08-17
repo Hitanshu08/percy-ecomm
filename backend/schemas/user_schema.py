@@ -52,6 +52,15 @@ class AdminRemoveCredits(BaseModel):
     credits: int
     service_id: Optional[str] = None  # If provided, remove credits from specific subscription
 
+class AdminRemoveSubscription(BaseModel):
+    username: str
+    service_id: str  # subscription's service_id (account id)
+
+class AdminUpdateSubscriptionEndDate(BaseModel):
+    username: str
+    service_id: str
+    end_date: str  # dd/mm/yyyy
+
 class AdminAssignSubscription(BaseModel):
     username: str
     # Either provide service_id + end_date, or service_name + duration

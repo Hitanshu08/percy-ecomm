@@ -61,6 +61,8 @@ export default function Admin() {
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [subsByUser, setSubsByUser] = useState<Record<string, any>>({});
   const [loadingSubsFor, setLoadingSubsFor] = useState<string | null>(null);
+  const [endDateEdits, setEndDateEdits] = useState<Record<string, string>>({});
+  const [showEndDateEdit, setShowEndDateEdit] = useState<Record<string, boolean>>({});
   
   // Credit management state
   const [creditUser, setCreditUser] = useState<string>('');
@@ -79,25 +81,25 @@ export default function Admin() {
   // Service credit configuration (matching backend config)
   const serviceCredits = {
     "Quillbot": {
-      "7days": 100,
-      "1month": 500,
-      "3months": 1200,
-      "6months": 2000,
-      "1year": 3500
+      "7days": 1,
+      "1month": 2,
+      "3months": 12,
+      "6months": 20,
+      "1year": 35
     },
     "Grammarly": {
-      "7days": 80,
-      "1month": 400,
-      "3months": 1000,
-      "6months": 1800,
-      "1year": 3000
+      "7days": 2,
+      "1month": 4,
+      "3months": 10,
+      "6months": 18,
+      "1year": 30
     },
     "ChatGPT": {
-      "7days": 150,
-      "1month": 600,
-      "3months": 1500,
-      "6months": 2500,
-      "1year": 4500
+      "7days": 3,
+      "1month": 6,
+      "3months": 15,
+      "6months": 25,
+      "1year": 45
     }
   };
 
@@ -384,6 +386,7 @@ export default function Admin() {
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setSubsByUser(prev => ({ ...prev, [username]: data }));
+      setUserSubs(data);
     } catch (e) {
       console.error('Failed to fetch user subscriptions', e);
     } finally {
@@ -816,12 +819,11 @@ export default function Admin() {
                             onClick={async () => {
                               if (expandedUser === user.username) {
                                 setExpandedUser(null);
+                                setUserSubs(null);
                                 return;
                               }
                               setExpandedUser(user.username);
-                              if (!subsByUser[user.username]) {
-                                await fetchUserSubscriptions(user.username);
-                              }
+                              await fetchUserSubscriptions(user.username);
                             }}
                             className="px-3 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm"
                           >
@@ -871,11 +873,107 @@ export default function Admin() {
                       <div className="space-y-3">
                         {userSubs.subscriptions.map((s: any, idx: number) => (
                           <div key={idx} className="p-3 border border-gray-200 dark:border-gray-700 rounded-md">
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+                            <div className="grid grid-cols-1 md:grid-cols-7 gap-3 text-sm items-start">
                               <div><span className="font-medium">Service:</span> {s.service_name}</div>
                               <div><span className="font-medium">Account:</span> {s.account_id}</div>
                               <div><span className="font-medium">End Date:</span> {s.end_date}</div>
                               <div><span className="font-medium">Active:</span> {s.is_active ? 'Yes' : 'No'}</div>
+                              <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-2 md:col-span-3">
+                                {!showEndDateEdit[s.account_id] ? (
+                                  <button
+                                    onClick={() => setShowEndDateEdit(prev => ({ ...prev, [s.account_id]: true }))}
+                                    className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                                  >
+                                    Update End Date
+                                  </button>
+                                ) : (
+                                  <>
+                                    <input
+                                      type="text"
+                                      placeholder="DD-MM-YYYY"
+                                      value={endDateEdits[s.account_id] ?? ''}
+                                      onChange={(e) => setEndDateEdits(prev => ({ ...prev, [s.account_id]: e.target.value }))}
+                                      className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-xs"
+                                    />
+                                    <button
+                                      onClick={async () => {
+                                        const input = (endDateEdits[s.account_id] || '').trim();
+                                        if (!/^\d{2}-\d{2}-\d{4}$/.test(input)) {
+                                          alert('Please enter date in DD-MM-YYYY format');
+                                          return;
+                                        }
+                                        const ddmmyyyy = input.replace(/-/g, '/');
+                                        try {
+                                          const res = await fetch(`https://www.api.webmixo.com/admin/users/update-subscription-end-date`, {
+                                            method: 'POST',
+                                            headers: {
+                                              'Content-Type': 'application/json',
+                                              'Authorization': `Bearer ${localStorage.getItem('token')}`
+                                            },
+                                            body: JSON.stringify({ username: userSubs.username, service_id: s.account_id, end_date: ddmmyyyy })
+                                          });
+                                          if (!res.ok) throw new Error(await res.text());
+                                          const refreshed = await fetch(`https://www.api.webmixo.com/admin/users/${encodeURIComponent(userSubs.username)}/subscriptions`, {
+                                            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                                          });
+                                          if (refreshed.ok) {
+                                            const data = await refreshed.json();
+                                            setUserSubs(data);
+                                          }
+                                          setShowEndDateEdit(prev => ({ ...prev, [s.account_id]: false }));
+                                          setEndDateEdits(prev => ({ ...prev, [s.account_id]: '' }));
+                                          alert('End date updated');
+                                        } catch (e) {
+                                          alert('Failed to update end date');
+                                        }
+                                      }}
+                                      className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                                    >
+                                      Save
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setShowEndDateEdit(prev => ({ ...prev, [s.account_id]: false }));
+                                        setEndDateEdits(prev => ({ ...prev, [s.account_id]: '' }));
+                                      }}
+                                      className="px-2 py-1 bg-gray-600 text-white rounded text-xs hover:bg-gray-700"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                              <div className="flex gap-2 md:col-span-full md:justify-end flex-wrap">
+                                <button
+                                  onClick={async () => {
+                                    if (!confirm(`Remove subscription ${s.account_id} from ${userSubs.username}?`)) return;
+                                    try {
+                                      const res = await fetch(`https://www.api.webmixo.com/admin/users/remove-subscription`, {
+                                        method: 'POST',
+                                        headers: {
+                                          'Content-Type': 'application/json',
+                                          'Authorization': `Bearer ${localStorage.getItem('token')}`
+                                        },
+                                        body: JSON.stringify({ username: userSubs.username, service_id: s.account_id })
+                                      });
+                                      if (!res.ok) throw new Error(await res.text());
+                                      const refreshed = await fetch(`https://www.api.webmixo.com/admin/users/${encodeURIComponent(userSubs.username)}/subscriptions`, {
+                                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                                      });
+                                      if (refreshed.ok) {
+                                        const data = await refreshed.json();
+                                        setUserSubs(data);
+                                      }
+                                      alert('Subscription removed');
+                                    } catch (e) {
+                                      alert('Failed to remove subscription');
+                                    }
+                                  }}
+                                  className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+                                >
+                                  Remove
+                                </button>
+                              </div>
                             </div>
                           </div>
                         ))}

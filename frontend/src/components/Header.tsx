@@ -247,7 +247,7 @@ export default function Header() {
             {/* Sidebar Header */}
             <div className={`flex items-center justify-between p-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
               <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center">
                 <img 
                   src="/public/percy_ecomm_logo.png" 
                   alt="Percy Logo" 
