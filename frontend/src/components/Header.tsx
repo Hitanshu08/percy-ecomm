@@ -102,9 +102,9 @@ export default function Header() {
             <div className="flex items-center lg:flex-1 lg:justify-start">
               <Link to="/dashboard" className="flex items-center space-x-2">
                 <img 
-                  src="/public/percy_ecomm_logo.png" 
-                  alt="Percy Logo" 
-                  className="h-8 w-auto"
+                  src="/valuesubs_logo.png" 
+                  alt="Valuesubs Logo" 
+                  className="h-8 w-auto h-10 sm:hidden"
                   onError={(e) => {
                     // Fallback to text logo if image fails to load
                     const target = e.target as HTMLImageElement;
@@ -112,15 +112,32 @@ export default function Header() {
                     const parent = target.parentElement;
                     if (parent) {
                       const fallback = document.createElement('div');
-                      fallback.className = 'w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center';
+                      fallback.className = 'w-8 h-8 sm:w-10 sm:h-10 bg-blue-600 rounded-lg flex items-center justify-center md:hidden';
+                      fallback.innerHTML = '<span class="text-white font-bold text-sm sm:text-base">V</span>';
+                      parent.insertBefore(fallback, target);
+                    }
+                  }}
+                />
+                <img 
+                  src="/percy_ecomm_logo.png" 
+                  alt="Percy Ecomm Logo" 
+                  className="hidden sm:block h-8 w-auto"
+                  onError={(e) => {
+                    // Fallback to text logo if image fails to load
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent) {
+                      const fallback = document.createElement('div');
+                      fallback.className = 'hidden md:flex w-8 h-8 bg-blue-600 rounded-lg items-center justify-center';
                       fallback.innerHTML = '<span class="text-white font-bold text-sm">P</span>';
                       parent.insertBefore(fallback, target);
                     }
                   }}
                 />
-                <span className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                {/* <span className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                   Percy
-                </span>
+                </span> */}
               </Link>
             </div>
 
@@ -247,10 +264,10 @@ export default function Header() {
             {/* Sidebar Header */}
             <div className={`flex items-center justify-between p-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
               <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center">
+                <div className="h-8 rounded-lg flex items-center justify-center">
                 <img 
-                  src="/public/percy_ecomm_logo.png" 
-                  alt="Percy Logo" 
+                  src="/public/valuesubs_logo.png" 
+                  alt="Valuesubs Logo" 
                   className="h-8 w-auto"
                   onError={(e) => {
                     // Fallback to text logo if image fails to load
@@ -266,9 +283,9 @@ export default function Header() {
                   }}
                 />
                 </div>
-                <span className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                {/* <span className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                   Percy
-                </span>
+                </span> */}
               </div>
               <button
                 onClick={() => setIsSidebarOpen(false)}

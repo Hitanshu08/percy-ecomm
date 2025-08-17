@@ -1,6 +1,6 @@
-# Percy E-commerce Backend
+# Valuesubs E-commerce Backend
 
-A FastAPI-based backend for the Percy E-commerce subscription platform.
+A FastAPI-based backend for the Valuesubs E-commerce subscription platform.
 
 ## Features
 

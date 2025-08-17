@@ -39,7 +39,7 @@ export default function TermsAndConditions({ onBack }: TermsAndConditionsProps) 
             <section>
               <h2 className="text-2xl font-semibold mb-4">1. Acceptance of Terms</h2>
               <p>
-                By accessing and using Percy ("the Service"), you accept and agree to be bound by the terms and provision of this agreement. 
+                By accessing and using Valuesubs ("the Service"), you accept and agree to be bound by the terms and provision of this agreement. 
                 If you do not agree to abide by the above, please do not use this service.
               </p>
             </section>
@@ -47,7 +47,7 @@ export default function TermsAndConditions({ onBack }: TermsAndConditionsProps) 
             <section>
               <h2 className="text-2xl font-semibold mb-4">2. Description of Service</h2>
               <p>
-                Percy provides subscription management services for various third-party applications including but not limited to Quillbot, 
+                Valuesubs provides subscription management services for various third-party applications including but not limited to Quillbot, 
                 Grammarly, and other writing assistance tools. We act as an intermediary service to help manage your subscriptions 
                 and provide a unified interface for accessing these services.
               </p>
@@ -94,7 +94,7 @@ export default function TermsAndConditions({ onBack }: TermsAndConditionsProps) 
             <section>
               <h2 className="text-2xl font-semibold mb-4">7. Intellectual Property</h2>
               <p>
-                The Service and its original content, features, and functionality are and will remain the exclusive property of Percy 
+                The Service and its original content, features, and functionality are and will remain the exclusive property of Valuesubs 
                 and its licensors. The Service is protected by copyright, trademark, and other laws.
               </p>
             </section>
@@ -111,7 +111,7 @@ export default function TermsAndConditions({ onBack }: TermsAndConditionsProps) 
             <section>
               <h2 className="text-2xl font-semibold mb-4">9. Limitation of Liability</h2>
               <p>
-                In no event shall Percy, nor its directors, employees, partners, agents, suppliers, or affiliates, be liable for any 
+                In no event shall Valuesubs, nor its directors, employees, partners, agents, suppliers, or affiliates, be liable for any 
                 indirect, incidental, special, consequential, or punitive damages, including without limitation, loss of profits, 
                 data, use, goodwill, or other intangible losses, resulting from your use of the Service.
               </p>
@@ -131,8 +131,8 @@ export default function TermsAndConditions({ onBack }: TermsAndConditionsProps) 
                 If you have any questions about these Terms and Conditions, please contact us at:
               </p>
               <div className="mt-2">
-                <p>Email: support@percy.com</p>
-                <p>Address: 123 Percy Street, Tech City, TC 12345</p>
+                <p>Email: support@Valuesubs.com</p>
+                <p>Address: 123 Valuesubs Street, Tech City, TC 12345</p>
               </div>
             </section>
           </div>
@@ -142,7 +142,7 @@ export default function TermsAndConditions({ onBack }: TermsAndConditionsProps) 
         <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
           <div className="flex justify-between items-center">
             <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-              © 2025 Percy. All rights reserved.
+              © 2025 Valuesubs. All rights reserved.
             </p>
             <button
               onClick={onBack}

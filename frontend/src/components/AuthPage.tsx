@@ -46,7 +46,7 @@ export default function AuthPage() {
         {/* Footer */}
         <div className="mt-8 text-center">
           <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-            © 2025 Percy. All rights reserved.
+            © 2025 Valuesubs. All rights reserved.
           </p>
         </div>
       </div>

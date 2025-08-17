@@ -30,7 +30,7 @@ def create_user(user: UserCreate):
                 services=[],
                 credits=0,
                 btc_address=f"btc-{user.username}",
-                notifications=["Welcome to Percy E-commerce!"],
+                notifications=["Welcome to Valuesubs E-commerce!"],
                 profile={
                     "first_name": "",
                     "last_name": "",

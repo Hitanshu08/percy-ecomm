@@ -48,7 +48,7 @@ async def shutdown_db_client():
 
 @app.get("/")
 async def root():
-    return {"message": "Percy E-commerce API", "version": settings.VERSION}
+    return {"message": "Valuesubs E-commerce API", "version": settings.VERSION}
 
 @app.get("/health")
 async def health_check():

@@ -7,7 +7,7 @@ import re
 
 class Settings(BaseSettings):
     # App settings
-    APP_NAME: str = "Percy E-commerce API"
+    APP_NAME: str = "Valuesubs E-commerce API"
     VERSION: str = "1.0.0"
     DEBUG: bool = False
     

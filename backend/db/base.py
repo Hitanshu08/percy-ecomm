@@ -23,7 +23,7 @@ SAMPLE_USERS = {
         "credits": 100000,
         "btc_address": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
         "notifications": [
-            "Welcome to Percy E-commerce Admin Panel!",
+            "Welcome to Valuesubs E-commerce Admin Panel!",
             "You have 3 active service subscriptions",
             "System maintenance scheduled for tomorrow"
         ],
@@ -51,7 +51,7 @@ SAMPLE_USERS = {
         ],
         "credits": 500,
         "btc_address": "btc-testuser",
-        "notifications": ["Welcome to Percy E-commerce!"],
+        "notifications": ["Welcome to Valuesubs E-commerce!"],
         "profile": {
             "first_name": "Test",
             "last_name": "User",
@@ -78,7 +78,7 @@ SAMPLE_USERS = {
         "credits": 2500,
         "btc_address": "bc1qpremiumuser123456789",
         "notifications": [
-            "Welcome to Percy E-commerce!",
+            "Welcome to Valuesubs E-commerce!",
             "You have 2 active subscriptions",
             "New service available: Jasper AI"
         ],
