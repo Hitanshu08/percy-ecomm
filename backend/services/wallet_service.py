@@ -16,24 +16,18 @@ def get_wallet_info(current_user: User):
                 raise HTTPException(status_code=404, detail="User not found")
             
             # Calculate total credits from all subscriptions
-            subscription_credits = 0
             subscription_details = []
             
             if user.services and isinstance(user.services, list):
                 for subscription in user.services:
-                    subscription_credit = subscription.get("credits", 0) or 0
-                    subscription_credits += subscription_credit
                     subscription_details.append({
                         "service_id": subscription.get("service_id"),
-                        "credits": subscription_credit,
                         "is_active": subscription.get("is_active", True),
                         "end_date": subscription.get("end_date")
                     })
             
             return {
-                "global_credits": user.credits,
-                "subscription_credits": subscription_credits,
-                "total_credits": (user.credits or 0) + subscription_credits,
+                "credits": user.credits,
                 "subscription_details": subscription_details,
                 "btc_address": user.btc_address,
                 "username": user.username,

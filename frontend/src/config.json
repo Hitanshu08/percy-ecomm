@@ -5,7 +5,7 @@
     "description": "Subscription-based e-commerce platform for digital services"
   },
   "api": {
-    "base_url": "https://www.api.webmixo.com",
+    "base_url": "http://127.0.0.1:8000",
     "timeout": 30000,
     "retry_attempts": 3,
     "retry_delay": 1000

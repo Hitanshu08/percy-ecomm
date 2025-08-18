@@ -104,7 +104,7 @@ export default function Header() {
                 <img 
                   src="/valuesubs_logo.png" 
                   alt="Valuesubs Logo" 
-                  className="h-8 w-auto h-10 sm:hidden"
+                  className="h-8 w-auto h-10 sm:hidden filter dark:invert"
                   onError={(e) => {
                     // Fallback to text logo if image fails to load
                     const target = e.target as HTMLImageElement;
@@ -119,9 +119,9 @@ export default function Header() {
                   }}
                 />
                 <img 
-                  src="/percy_ecomm_logo.png" 
+                  src="/valuesubs_logo_square.png" 
                   alt="Percy Ecomm Logo" 
-                  className="hidden sm:block h-8 w-auto"
+                  className="hidden sm:block h-8 w-auto filter dark:invert"
                   onError={(e) => {
                     // Fallback to text logo if image fails to load
                     const target = e.target as HTMLImageElement;
@@ -266,9 +266,9 @@ export default function Header() {
               <div className="flex items-center space-x-2">
                 <div className="h-8 rounded-lg flex items-center justify-center">
                 <img 
-                  src="/public/valuesubs_logo.png" 
+                  src="/valuesubs_logo.png" 
                   alt="Valuesubs Logo" 
-                  className="h-8 w-auto"
+                  className="h-8 w-auto filter dark:invert"
                   onError={(e) => {
                     // Fallback to text logo if image fails to load
                     const target = e.target as HTMLImageElement;

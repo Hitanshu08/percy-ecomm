@@ -4,6 +4,7 @@ from db.session import SessionLocal
 from db.models.user import User as UserModel
 from db.models.service import Service as ServiceModel
 from fastapi import HTTPException
+from sqlalchemy.orm.attributes import flag_modified
 import logging
 
 logger = logging.getLogger(__name__)
@@ -71,16 +72,18 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
                 elif chosen is not None:
                     cost_to_deduct = chosen["credits_cost"]
 
-            # Validate selected account exists
-            service_found = False
+            # Validate selected account exists and capture its service + account data
+            svc_for_account = None
+            picked_account_obj = None
             for service in db.query(ServiceModel).all():
                 for account in (service.accounts or []):
                     if account.get("id") == service_id:
-                        service_found = True
+                        svc_for_account = service
+                        picked_account_obj = account
                         break
-                if service_found:
+                if svc_for_account:
                     break
-            if not service_found:
+            if not svc_for_account:
                 raise HTTPException(status_code=404, detail="Service account not found")
 
             # Deduct credits (feature-flagged; disabled for now)
@@ -91,6 +94,54 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
                 if user.credits < cost_to_deduct:
                     raise HTTPException(status_code=400, detail="Insufficient credits for assignment")
                 user.credits -= cost_to_deduct
+
+            # If the user already has a subscription for this service, extend it if possible
+            try:
+                from datetime import datetime, timedelta
+                from services.service_service import parse_date, format_date
+                existing_subscription = None
+                # Identify if any existing subscription belongs to this same service (any account in svc_for_account)
+                service_account_ids = set(acc.get("id") for acc in (svc_for_account.accounts or []))
+                for sub in (user.services or []):
+                    if sub.get("service_id") in service_account_ids:
+                        existing_subscription = sub
+                        break
+                if existing_subscription:
+                    # Determine proposed new end date by extending current end or from today
+                    today = datetime.now()
+                    current_end = parse_date(existing_subscription.get("end_date")) if isinstance(existing_subscription.get("end_date"), str) else existing_subscription.get("end_date")
+                    base_date = current_end if current_end and current_end > today else today
+                    proposed_end = base_date + timedelta(days=days)
+                    # Ensure the backing service account can support the proposed end date
+                    account_end = parse_date(picked_account_obj.get("end_date")) if isinstance(picked_account_obj.get("end_date"), str) else picked_account_obj.get("end_date")
+                    if not account_end or proposed_end > account_end:
+                        raise HTTPException(status_code=400, detail="Cannot assign: requested extension exceeds service account expiry")
+                    # Apply extension and credit top-up
+                    existing_subscription["end_date"] = format_date(proposed_end)
+                    # Top up subscription credits for the additional period
+                    existing_subscription["credits"] = (existing_subscription.get("credits", 0) or 0) + service_credits
+                    flag_modified(user, "services")
+                    db.flush()
+                    db.commit()
+                    db.refresh(user)
+                    effective_cost = cost_to_deduct if deduct_enabled else 0
+                    return {
+                        "message": f"Extended subscription for {request.username}",
+                        "extension": True,
+                        "new_end_date": format_date(proposed_end),
+                        "credits": user.credits,
+                        "cost": effective_cost,
+                        "service_name": request.service_name,
+                        "assigned_account_id": existing_subscription.get("service_id"),
+                        "account_expiry_days": days,
+                        "credits_deducted": effective_cost,
+                        "remaining_credits": user.credits,
+                    }
+            except HTTPException:
+                raise HTTPException(status_code=400, detail="Cannot assign: requested extension exceeds service account expiry")
+            except Exception:
+                # Fall through to create a new subscription if extension path fails unexpectedly
+                pass
 
             # Handle JSON field properly - ensure it's a list
             if user.services is None:
@@ -134,15 +185,17 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
                 "account_expiry_days": days,
                 "credits_deducted": effective_cost,
                 "remaining_credits": user.credits,
-                "subscription_credits_assigned": service_credits
             }
         finally:
             db.close()
     except Exception as e:
+        # Propagate explicit HTTP errors; otherwise treat as a 400-level validation/assignment failure
+        if isinstance(e, HTTPException):
+            raise e
         logger.error(f"Error assigning subscription: {e}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=400, detail="Failed to assign subscription")
 
 def add_credits_to_user(request: AdminAddCredits, current_user: User):
     """Add credits to a user or specific subscription"""
@@ -170,7 +223,7 @@ def add_credits_to_user(request: AdminAddCredits, current_user: User):
                     db.commit()
                     return {
                         "message": f"Added {request.credits} credits to subscription {request.service_id} for {request.username}",
-                        "subscription_credits": subscription.get("credits", 0)
+                        # "subscription_credits": subscription.get("credits", 0)
                     }
                 else:
                     raise HTTPException(status_code=400, detail="User has no subscriptions")
@@ -204,12 +257,13 @@ def remove_credits_from_user(request: AdminRemoveCredits, current_user: User):
                             subscription["credits"] = new_value
                             subscription_found = True
                             break
+                    flag_modified(user, "services")
                     if not subscription_found:
                         raise HTTPException(status_code=404, detail="Subscription not found")
                     db.commit()
                     return {
                         "message": f"Removed {request.credits} credits from subscription {request.service_id} for {request.username}",
-                        "subscription_credits": subscription.get("credits", 0)
+                        # "subscription_credits": subscription.get("credits", 0)
                     }
                 else:
                     raise HTTPException(status_code=400, detail="User has no subscriptions")
@@ -237,6 +291,7 @@ def remove_user_subscription(request: AdminRemoveSubscription, current_user: Use
             if not user.services or not isinstance(user.services, list):
                 raise HTTPException(status_code=400, detail="User has no subscriptions")
             user.services = [s for s in user.services if s.get("service_id") != request.service_id]
+            flag_modified(user, "services")
             after = len(user.services)
             if before == after:
                 raise HTTPException(status_code=404, detail="Subscription not found")
@@ -264,6 +319,7 @@ def update_user_subscription_end_date(request: AdminUpdateSubscriptionEndDate, c
                     sub["end_date"] = request.end_date
                     updated = True
                     break
+            flag_modified(user, "services")
             if not updated:
                 raise HTTPException(status_code=404, detail="Subscription not found")
             db.commit()
@@ -281,19 +337,12 @@ def get_all_users(current_user: User):
         try:
             users = []
             for user in db.query(UserModel).all():
-                # Calculate subscription credits
-                subscription_credits = 0
-                if user.services and isinstance(user.services, list):
-                    for subscription in user.services:
-                        subscription_credits += subscription.get("credits", 0) or 0
                 
                 users.append({
                     "username": user.username,
                     "email": user.email,
                     "role": user.role,
-                    "global_credits": user.credits,
-                    "subscription_credits": subscription_credits,
-                    "total_credits": (user.credits or 0) + subscription_credits,
+                    "credits": user.credits,
                     "services": user.services or [],
                 })
             return {"users": users}

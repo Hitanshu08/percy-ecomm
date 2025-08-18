@@ -274,7 +274,7 @@ const Shop: React.FC = () => {
             return (
               <div key={service.name} className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden border border-gray-200 dark:border-gray-700">
                 {/* Service Image */}
-                <div className="relative h-48 bg-gradient-to-br from-blue-500 to-purple-600">
+                <div className="relative h-48">
                   {service.image && service.image.trim().startsWith('<svg') ? (
                     <div
                       className="service-logo mx-auto h-48 w-48"

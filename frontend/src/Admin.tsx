@@ -23,14 +23,10 @@ interface User {
   email: string;
   role: string;
   credits?: number;
-  global_credits?: number;
-  subscription_credits?: number;
-  total_credits?: number;
   services: Array<{
     service_id: string;
     end_date: string;
     is_active: boolean;
-    credits?: number;
   }>;
 }
 
@@ -79,45 +75,45 @@ export default function Admin() {
   }, []);
 
   // Service credit configuration (matching backend config)
-  const serviceCredits = {
-    "Quillbot": {
-      "7days": 1,
-      "1month": 2,
-      "3months": 12,
-      "6months": 20,
-      "1year": 35
-    },
-    "Grammarly": {
-      "7days": 2,
-      "1month": 4,
-      "3months": 10,
-      "6months": 18,
-      "1year": 30
-    },
-    "ChatGPT": {
-      "7days": 3,
-      "1month": 6,
-      "3months": 15,
-      "6months": 25,
-      "1year": 45
-    }
-  };
+  // const serviceCredits = {
+  //   "Quillbot": {
+  //     "7days": 1,
+  //     "1month": 2,
+  //     "3months": 12,
+  //     "6months": 20,
+  //     "1year": 35
+  //   },
+  //   "Grammarly": {
+  //     "7days": 2,
+  //     "1month": 4,
+  //     "3months": 10,
+  //     "6months": 18,
+  //     "1year": 30
+  //   },
+  //   "ChatGPT": {
+  //     "7days": 3,
+  //     "1month": 6,
+  //     "3months": 15,
+  //     "6months": 25,
+  //     "1year": 45
+  //   }
+  // };
 
-  const getServiceCreditsForDuration = (serviceName: string, duration: string): number => {
-    const service = serviceCredits[serviceName as keyof typeof serviceCredits];
-    if (service && duration in service) {
-      return (service as any)[duration];
-    }
-    return 0;
-  };
+  // const getServiceCreditsForDuration = (serviceName: string, duration: string): number => {
+    // const service = serviceCredits[serviceName as keyof typeof serviceCredits];
+    // if (service && duration in service) {
+    //   return (service as any)[duration];
+    // }
+    // return 0;
+  // };
 
   const fetchData = async () => {
     try {
               const [servicesRes, usersRes] = await Promise.all([
-          fetch('https://www.api.webmixo.com/admin/services', {
+          fetch('http://127.0.0.1:8000/admin/services', {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
           }),
-          fetch('https://www.api.webmixo.com/admin/users', {
+          fetch('http://127.0.0.1:8000/admin/users', {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
           })
         ]);
@@ -148,7 +144,7 @@ export default function Admin() {
 
   const handleCreateService = async () => {
     try {
-      const response = await fetch('https://www.api.webmixo.com/admin/services', {
+      const response = await fetch('http://127.0.0.1:8000/admin/services', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -177,7 +173,7 @@ export default function Admin() {
 
       const handleEditService = async (serviceName: string) => {
       try {
-        const response = await fetch(`https://www.api.webmixo.com/admin/services/${serviceName}`, {
+        const response = await fetch(`http://127.0.0.1:8000/admin/services/${serviceName}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -208,7 +204,7 @@ export default function Admin() {
 
       const startEditService = async (serviceName: string) => {
       try {
-        const response = await fetch(`https://www.api.webmixo.com/admin/services/${serviceName}`, {
+        const response = await fetch(`http://127.0.0.1:8000/admin/services/${serviceName}`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
 
@@ -240,7 +236,7 @@ export default function Admin() {
     if (!confirm(`Are you sure you want to delete ${serviceName}? This will also remove all user subscriptions to this service.`)) return;
 
     try {
-              const response = await fetch(`https://www.api.webmixo.com/admin/services/${serviceName}`, {
+              const response = await fetch(`http://127.0.0.1:8000/admin/services/${serviceName}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
@@ -275,7 +271,7 @@ export default function Admin() {
 
     setAddingSubscription(true);
     try {
-      const result = await callApi<any>('https://www.api.webmixo.com/admin/assign-subscription', {
+      const result = await callApi<any>('http://127.0.0.1:8000/admin/assign-subscription', {
         method: 'POST',
         body: JSON.stringify({
           username: selectedUser,
@@ -294,8 +290,14 @@ export default function Admin() {
       setSelectedDuration('');
       fetchData();
     } catch (error) {
-      console.error('Error adding subscription:', error);
-      alert('Failed to add subscription. Please try again.');
+        try {
+          console.error('Error adding subscription:', error);
+          const parsedObject = JSON.parse((error as any).message);
+          alert(parsedObject.detail);
+      } catch (err) {
+        alert('Failed to add subscription. Please try again.');
+      }
+
     } finally {
       setAddingSubscription(false);
     }
@@ -317,7 +319,7 @@ export default function Admin() {
         requestBody.service_id = selectedSubscription;
       }
 
-      const response = await fetch('https://www.api.webmixo.com/admin/remove-credits', {
+      const response = await fetch('http://127.0.0.1:8000/admin/remove-credits', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -354,7 +356,7 @@ export default function Admin() {
         alert('Please enter a valid positive number');
         return;
       }
-      const response = await fetch('https://www.api.webmixo.com/admin/remove-credits', {
+      const response = await fetch('http://127.0.0.1:8000/admin/remove-credits', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -380,7 +382,7 @@ export default function Admin() {
     if (!username) return;
     try {
       setLoadingSubsFor(username);
-              const res = await fetch(`https://www.api.webmixo.com/admin/users/${encodeURIComponent(username)}/subscriptions`, {
+              const res = await fetch(`http://127.0.0.1:8000/admin/users/${encodeURIComponent(username)}/subscriptions`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       if (!res.ok) throw new Error(await res.text());
@@ -411,7 +413,7 @@ export default function Admin() {
         requestBody.service_id = selectedSubscription;
       }
 
-      const response = await fetch('https://www.api.webmixo.com/admin/add-credits', {
+      const response = await fetch('http://127.0.0.1:8000/admin/add-credits', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -732,10 +734,10 @@ export default function Admin() {
                       setSelectedService(e.target.value);
                       // Update credit preview
                       if (e.target.value && selectedDuration) {
-                        const credits = getServiceCreditsForDuration(e.target.value, selectedDuration);
-                        setServiceCreditPreview(credits);
+                        // const credits = getServiceCreditsForDuration(e.target.value, selectedDuration);
+                        // setServiceCreditPreview(credits);
                       } else {
-                        setServiceCreditPreview(null);
+                        // setServiceCreditPreview(null);
                       }
                     }}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
@@ -752,12 +754,12 @@ export default function Admin() {
                     onChange={(e) => {
                       setSelectedDuration(e.target.value);
                       // Update credit preview
-                      if (selectedService && e.target.value) {
-                        const credits = getServiceCreditsForDuration(selectedService, e.target.value);
-                        setServiceCreditPreview(credits);
-                      } else {
-                        setServiceCreditPreview(null);
-                      }
+                      // if (selectedService && e.target.value) {
+                      //   const credits = getServiceCreditsForDuration(selectedService, e.target.value);
+                      //   setServiceCreditPreview(credits);
+                      // } else {
+                      //   setServiceCreditPreview(null);
+                      // }
                     }}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
                   >
@@ -770,13 +772,13 @@ export default function Admin() {
                 </div>
                 
                 {/* Credit Preview */}
-                {serviceCreditPreview !== null && selectedService && selectedDuration && (
+                {/* {serviceCreditPreview !== null && selectedService && selectedDuration && (
                   <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
                     <p className="text-sm text-blue-800 dark:text-blue-200">
                       <strong>Credit Preview:</strong> {selectedService} for {selectedDuration} will be assigned <strong>{serviceCreditPreview} credits</strong>
                     </p>
                   </div>
-                )}
+                )} */}
                 <button
                   onClick={handleAddSubscription}
                   disabled={addingSubscription}
@@ -803,7 +805,7 @@ export default function Admin() {
                               {user.username}
                             </h3>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {user.email} • {user.role} • {user.total_credits || user.credits} total credits • {user.services.length} subscriptions
+                              {user.email} • {user.role} • {user.credits} total credits • {user.services.length} subscriptions
                             </p>
                           </div>
                           <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -904,7 +906,7 @@ export default function Admin() {
                                         }
                                         const ddmmyyyy = input.replace(/-/g, '/');
                                         try {
-                                          const res = await fetch(`https://www.api.webmixo.com/admin/users/update-subscription-end-date`, {
+                                          const res = await fetch(`http://127.0.0.1:8000/admin/users/update-subscription-end-date`, {
                                             method: 'POST',
                                             headers: {
                                               'Content-Type': 'application/json',
@@ -913,7 +915,7 @@ export default function Admin() {
                                             body: JSON.stringify({ username: userSubs.username, service_id: s.account_id, end_date: ddmmyyyy })
                                           });
                                           if (!res.ok) throw new Error(await res.text());
-                                          const refreshed = await fetch(`https://www.api.webmixo.com/admin/users/${encodeURIComponent(userSubs.username)}/subscriptions`, {
+                                          const refreshed = await fetch(`http://127.0.0.1:8000/admin/users/${encodeURIComponent(userSubs.username)}/subscriptions`, {
                                             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                                           });
                                           if (refreshed.ok) {
@@ -948,7 +950,7 @@ export default function Admin() {
                                   onClick={async () => {
                                     if (!confirm(`Remove subscription ${s.account_id} from ${userSubs.username}?`)) return;
                                     try {
-                                      const res = await fetch(`https://www.api.webmixo.com/admin/users/remove-subscription`, {
+                                      const res = await fetch(`http://127.0.0.1:8000/admin/users/remove-subscription`, {
                                         method: 'POST',
                                         headers: {
                                           'Content-Type': 'application/json',
@@ -957,7 +959,7 @@ export default function Admin() {
                                         body: JSON.stringify({ username: userSubs.username, service_id: s.account_id })
                                       });
                                       if (!res.ok) throw new Error(await res.text());
-                                      const refreshed = await fetch(`https://www.api.webmixo.com/admin/users/${encodeURIComponent(userSubs.username)}/subscriptions`, {
+                                      const refreshed = await fetch(`http://127.0.0.1:8000/admin/users/${encodeURIComponent(userSubs.username)}/subscriptions`, {
                                         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                                       });
                                       if (refreshed.ok) {
@@ -1008,7 +1010,7 @@ export default function Admin() {
                   <option value="">Select User</option>
                   {(users || []).map((user) => (
                     <option key={user.username} value={user.username}>
-                      {user.username} ({user.role}) - Total: {user.total_credits || user.credits || 0} credits
+                      {user.username} ({user.role}) - Total: {user.credits || 0} credits
                     </option>
                   ))}
                 </select>
