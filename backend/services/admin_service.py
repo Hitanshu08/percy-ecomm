@@ -41,7 +41,12 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
                 if not duration_cfg:
                     raise HTTPException(status_code=400, detail="Invalid duration")
                 days = duration_cfg["days"]
-                cost_to_deduct = duration_cfg["credits_cost"]
+                # Determine credits from service.credits override, fallback to global durations credits_cost
+                try:
+                    svc_credits_map = (svc.credits or {})
+                    cost_to_deduct = int(svc_credits_map.get(request.duration, duration_cfg.get("credits_cost", 0)))
+                except Exception:
+                    cost_to_deduct = duration_cfg.get("credits_cost", 0)
                 today = datetime.now()
                 picked_account = None
                 for account in (svc.accounts or []):
@@ -86,14 +91,14 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
             if not svc_for_account:
                 raise HTTPException(status_code=404, detail="Service account not found")
 
-            # Deduct credits (feature-flagged; disabled for now)
-            deduct_enabled = config.get("features.admin_assign_deduct_credits", False)
-            if deduct_enabled:
-                if user.credits is None:
-                    user.credits = 0
-                if user.credits < cost_to_deduct:
-                    raise HTTPException(status_code=400, detail="Insufficient credits for assignment")
-                user.credits -= cost_to_deduct
+            # Deduct credits for assignment/extension (enabled)
+            deduct_enabled = True
+            # if deduct_enabled:
+            #     if user.credits is None:
+            #         user.credits = 0
+            #     if user.credits < cost_to_deduct:
+            #         raise HTTPException(status_code=400, detail="Insufficient credits for assignment")
+            #     user.credits -= cost_to_deduct
 
             # If the user already has a subscription for this service, extend it if possible
             try:
@@ -115,11 +120,18 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
                     # Ensure the backing service account can support the proposed end date
                     account_end = parse_date(picked_account_obj.get("end_date")) if isinstance(picked_account_obj.get("end_date"), str) else picked_account_obj.get("end_date")
                     if not account_end or proposed_end > account_end:
-                        raise HTTPException(status_code=400, detail="Cannot assign: requested extension exceeds service account expiry")
+                        raise HTTPException(status_code=400, detail="Cannot extend: requested extension exceeds service account expiry")
+                    # Deduct user global credits (must be sufficient)
+                    if deduct_enabled:
+                        if user.credits is None:
+                            user.credits = 0
+                        if (user.credits or 0) < cost_to_deduct:
+                            raise HTTPException(status_code=400, detail="Insufficient credits")
+                        user.credits = (user.credits or 0) - cost_to_deduct
                     # Apply extension and credit top-up
                     existing_subscription["end_date"] = format_date(proposed_end)
                     # Top up subscription credits for the additional period
-                    existing_subscription["credits"] = (existing_subscription.get("credits", 0) or 0) + service_credits
+                    # existing_subscription["credits"] = (existing_subscription.get("credits", 0) or 0) + service_credits
                     flag_modified(user, "services")
                     db.flush()
                     db.commit()
@@ -138,10 +150,12 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
                         "remaining_credits": user.credits,
                     }
             except HTTPException:
-                raise HTTPException(status_code=400, detail="Cannot assign: requested extension exceeds service account expiry")
-            except Exception:
-                # Fall through to create a new subscription if extension path fails unexpectedly
-                pass
+                # Do not create a duplicate subscription when extension fails
+                raise
+            except Exception as e:
+                # Treat unknown extension errors as bad request and don't duplicate subscriptions
+                logger.error(f"Unexpected error during extension: {e}")
+                raise HTTPException(status_code=400, detail="Failed to extend existing subscription")
 
             # Handle JSON field properly - ensure it's a list
             if user.services is None:
@@ -150,7 +164,12 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
                 user.services = []
             
             # Get credits for this service and duration
-            service_credits = config.get_service_credits_for_duration(request.service_name, request.duration)
+            # Assign per-service credits (use service model credits if set, else fallback)
+            try:
+                svc = db.query(ServiceModel).filter(ServiceModel.name == request.service_name).first()
+                service_credits = int((svc.credits or {}).get(request.duration, config.get_service_credits_for_duration(request.service_name, request.duration)))
+            except Exception:
+                service_credits = config.get_service_credits_for_duration(request.service_name, request.duration)
             
             new_subscription = {
                 "service_id": service_id,
@@ -159,6 +178,14 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
                 "credits": service_credits,  # Assign credits based on service and duration
             }
             
+            # Deduct user global credits for new subscription
+            if deduct_enabled:
+                if user.credits is None:
+                    user.credits = 0
+                if (user.credits or 0) < cost_to_deduct:
+                    raise HTTPException(status_code=400, detail="Insufficient credits")
+                user.credits = (user.credits or 0) - cost_to_deduct
+
             # Create a new list to ensure proper JSON serialization
             updated_services = list(user.services)
             updated_services.append(new_subscription)
@@ -374,10 +401,16 @@ def get_all_admin_services(current_user: User):
 def update_service_credits(service_name: str, credits_map: dict, current_user: User):
     """Update per-duration credits for a service in config"""
     try:
-        svc_credits = config.get_service_credits() or {}
-        svc_credits[service_name] = credits_map
-        config.set_service_credits(svc_credits)
-        return {"message": f"Updated credits for {service_name}", "service_credits": svc_credits[service_name]}
+        db = SessionLocal()
+        try:
+            svc = db.query(ServiceModel).filter(ServiceModel.name == service_name).first()
+            if not svc:
+                raise HTTPException(status_code=404, detail="Service not found")
+            svc.credits = credits_map or {}
+            db.commit()
+            return {"message": f"Updated credits for {service_name}", "service_credits": svc.credits}
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Error updating service credits: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -385,8 +418,14 @@ def update_service_credits(service_name: str, credits_map: dict, current_user: U
 def get_service_credits_admin(service_name: str, current_user: User):
     """Get per-duration credits for a service from config"""
     try:
-        svc_credits = config.get_service_credits() or {}
-        return {"service_name": service_name, "credits": svc_credits.get(service_name, {})}
+        db = SessionLocal()
+        try:
+            svc = db.query(ServiceModel).filter(ServiceModel.name == service_name).first()
+            if not svc:
+                raise HTTPException(status_code=404, detail="Service not found")
+            return {"service_name": service_name, "credits": svc.credits or {}}
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Error getting service credits: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -406,6 +445,7 @@ def add_service(service_data: dict, current_user: User):
                 name=service_name,
                 image=service_data.get("image", ""),
                 accounts=service_data.get("accounts", []),
+                credits=service_data.get("credits", {}),
             ))
             db.commit()
             return {"message": f"Service {service_name} added successfully"}
@@ -426,6 +466,8 @@ def update_service(service_name: str, service_data: dict, current_user: User):
             existing_service.name = service_data.get("name", existing_service.name)
             existing_service.image = service_data.get("image", existing_service.image)
             existing_service.accounts = service_data.get("accounts", existing_service.accounts or [])
+            if "credits" in service_data:
+                existing_service.credits = service_data.get("credits") or {}
             db.commit()
             return {"message": f"Service {service_name} updated successfully"}
         finally:
@@ -495,6 +537,7 @@ def get_service_details(service_name: str, current_user: User):
                 "name": service.name,
                 "image": service.image,
                 "accounts": service.accounts or [],
+                "credits": service.credits or {},
             }
         finally:
             db.close()

@@ -59,6 +59,9 @@ export default function Admin() {
   const [loadingSubsFor, setLoadingSubsFor] = useState<string | null>(null);
   const [endDateEdits, setEndDateEdits] = useState<Record<string, string>>({});
   const [showEndDateEdit, setShowEndDateEdit] = useState<Record<string, boolean>>({});
+  const [showPasswords, setShowPasswords] = useState<Record<number, boolean>>({});
+  const [editingCreditsFor, setEditingCreditsFor] = useState<string | null>(null);
+  const [creditsForm, setCreditsForm] = useState<Record<string, number>>({});
   
   // Credit management state
   const [creditUser, setCreditUser] = useState<string>('');
@@ -75,37 +78,37 @@ export default function Admin() {
   }, []);
 
   // Service credit configuration (matching backend config)
-  // const serviceCredits = {
-  //   "Quillbot": {
-  //     "7days": 1,
-  //     "1month": 2,
-  //     "3months": 12,
-  //     "6months": 20,
-  //     "1year": 35
-  //   },
-  //   "Grammarly": {
-  //     "7days": 2,
-  //     "1month": 4,
-  //     "3months": 10,
-  //     "6months": 18,
-  //     "1year": 30
-  //   },
-  //   "ChatGPT": {
-  //     "7days": 3,
-  //     "1month": 6,
-  //     "3months": 15,
-  //     "6months": 25,
-  //     "1year": 45
-  //   }
-  // };
+  const serviceCredits = {
+    "Quillbot": {
+      "7days": 1,
+      "1month": 2,
+      "3months": 12,
+      "6months": 20,
+      "1year": 35
+    },
+    "Grammarly": {
+      "7days": 2,
+      "1month": 4,
+      "3months": 10,
+      "6months": 18,
+      "1year": 30
+    },
+    "ChatGPT": {
+      "7days": 3,
+      "1month": 6,
+      "3months": 15,
+      "6months": 25,
+      "1year": 45
+    }
+  };
 
-  // const getServiceCreditsForDuration = (serviceName: string, duration: string): number => {
-    // const service = serviceCredits[serviceName as keyof typeof serviceCredits];
-    // if (service && duration in service) {
-    //   return (service as any)[duration];
-    // }
-    // return 0;
-  // };
+  const getServiceCreditsForDuration = (serviceName: string, duration: string): number => {
+    const service = serviceCredits[serviceName as keyof typeof serviceCredits];
+    if (service && duration in service) {
+      return (service as any)[duration];
+    }
+    return 0;
+  };
 
   const fetchData = async () => {
     try {
@@ -213,9 +216,10 @@ export default function Admin() {
         setNewService({
           name: serviceData.name,
           image: serviceData.image,
+          credits: serviceData.credits || {},
           accounts: serviceData.accounts.map((acc: any) => ({
             id: acc.id,
-            password: '', // Don't show existing passwords
+            password: acc.password,
             end_date: acc.end_date,
             is_active: acc.is_active
           }))
@@ -553,6 +557,29 @@ export default function Admin() {
                 />
               </div>
 
+              {/* Credits Section */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Credits (per duration)
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {Object.entries(config.getSubscriptionDurations()).map(([key, d]: any) => (
+                    <div key={key} className="flex items-center gap-2">
+                      <label className="text-xs w-24 text-gray-700 dark:text-gray-300">{(d as any).name}</label>
+                      <input
+                        type="number"
+                        value={(newService as any).credits?.[key] ?? (d as any).credits_cost}
+                        onChange={(e) => setNewService(prev => ({
+                          ...prev,
+                          credits: { ...(prev as any).credits, [key]: Number(e.target.value) }
+                        }))}
+                        className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-xs"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {/* Accounts Section */}
               <div className="mb-4">
                 <div className="flex justify-between items-center mb-2">
@@ -584,23 +611,47 @@ export default function Admin() {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                       <input
                         type="text"
+                        autoComplete="off"
+                        name="serviceAccountId"
                         placeholder="Account ID"
                         value={account.id}
                         onChange={(e) => updateAccountField(index, 'id', e.target.value)}
                         className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
                       />
-                      <input
-                        type="password"
-                        placeholder="Password"
-                        value={account.password}
-                        onChange={(e) => updateAccountField(index, 'password', e.target.value)}
-                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showPasswords[index] ? 'text' : 'password'}
+                          autoComplete="off"
+                          placeholder="Password"
+                          name="serviceAccountPassword"
+                          value={account.password}
+                          onChange={(e) => updateAccountField(index, 'password', e.target.value)}
+                          className="w-full pr-10 pl-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPasswords(prev => ({ ...prev, [index]: !prev[index] }))}
+                          className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-600 dark:text-gray-300"
+                          aria-label={showPasswords[index] ? 'Hide password' : 'Show password'}
+                        >
+                          {showPasswords[index] ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-5 0-9-4-9-7 0-1.04.363-2.008.99-2.828m3.164-2.555A9.956 9.956 0 0112 5c5 0 9 4 9 7 0 .915-.27 1.79-.756 2.571M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
+                            </svg>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
                       <input
                         type="date"
                         value={formatDateForInput(account.end_date)}
                         onChange={(e) => updateAccountField(index, 'end_date', formatDateForDisplay(e.target.value))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300  dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white dark:[color-scheme:dark]"
                       />
                       <div className="flex items-center">
                         <input
@@ -689,7 +740,28 @@ export default function Admin() {
                         >
                           Edit
                         </button>
-                        {/* Edit Credits hidden for now */}
+                        <button
+                          onClick={async () => {
+                            setEditingCreditsFor(service.name);
+                            try {
+                              const res = await fetch(`https://www.api.webmixo.com/admin/services/${encodeURIComponent(service.name)}/credits`, {
+                                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                              });
+                              const data = res.ok ? await res.json() : { credits: {} };
+                              const durations = config.getSubscriptionDurations();
+                              const initial: Record<string, number> = {};
+                              Object.entries(durations).forEach(([key, d]: any) => {
+                                initial[key] = (data.credits && data.credits[key] != null) ? Number(data.credits[key]) : Number((d as any).credits_cost);
+                              });
+                              setCreditsForm(initial);
+                            } catch (e) {
+                              setCreditsForm({});
+                            }
+                          }}
+                          className="flex-1 px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
+                        >
+                          Edit Credits
+                        </button>
                         <button
                           onClick={() => handleDeleteService(service.name)}
                           className="flex-1 px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
@@ -697,6 +769,53 @@ export default function Admin() {
                           Delete
                         </button>
                       </div>
+                      {editingCreditsFor === service.name && (
+                        <div className="mt-4 p-3 border border-gray-200 dark:border-gray-700 rounded-md">
+                          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Edit Credits</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            {Object.entries(config.getSubscriptionDurations()).map(([key, d]: any) => (
+                              <div key={key} className="flex items-center gap-2">
+                                <label className="text-xs w-24 text-gray-700 dark:text-gray-300">{(d as any).name}</label>
+                                <input
+                                  type="number"
+                                  value={creditsForm[key] ?? (d as any).credits_cost}
+                                  onChange={(e) => setCreditsForm(prev => ({ ...prev, [key]: Number(e.target.value) }))}
+                                  className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-xs"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await fetch(`https://www.api.webmixo.com/admin/services/${encodeURIComponent(service.name)}/credits`, {
+                                    method: 'PUT',
+                                    headers: {
+                                      'Content-Type': 'application/json',
+                                      'Authorization': `Bearer ${localStorage.getItem('token')}`
+                                    },
+                                    body: JSON.stringify(creditsForm)
+                                  });
+                                  alert('Credits updated');
+                                  setEditingCreditsFor(null);
+                                } catch (e) {
+                                  alert('Failed to update credits');
+                                }
+                              }}
+                              className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-xs"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingCreditsFor(null)}
+                              className="px-3 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-xs"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -763,6 +882,7 @@ export default function Admin() {
                     }}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
                   >
+                    <option value="">Select Duration</option>
                     <option value="7days">7 Days</option>
                     <option value="1month">1 Month</option>
                     <option value="3months">3 Months</option>
@@ -891,20 +1011,19 @@ export default function Admin() {
                                 ) : (
                                   <>
                                     <input
-                                      type="text"
-                                      placeholder="DD-MM-YYYY"
-                                      value={endDateEdits[s.account_id] ?? ''}
+                                      type="date"
+                                      value={endDateEdits[s.account_id] ?? formatDateForInput(s.end_date)}
                                       onChange={(e) => setEndDateEdits(prev => ({ ...prev, [s.account_id]: e.target.value }))}
-                                      className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-xs"
+                                      className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-xs dark:[color-scheme:dark]"
                                     />
                                     <button
                                       onClick={async () => {
-                                        const input = (endDateEdits[s.account_id] || '').trim();
-                                        if (!/^\d{2}-\d{2}-\d{4}$/.test(input)) {
-                                          alert('Please enter date in DD-MM-YYYY format');
+                                        const iso = (endDateEdits[s.account_id] || formatDateForInput(s.end_date)).trim();
+                                        if (!iso) {
+                                          alert('Please pick a date');
                                           return;
                                         }
-                                        const ddmmyyyy = input.replace(/-/g, '/');
+                                        const ddmmyyyy = formatDateForDisplay(iso);
                                         try {
                                           const res = await fetch(`https://www.api.webmixo.com/admin/users/update-subscription-end-date`, {
                                             method: 'POST',

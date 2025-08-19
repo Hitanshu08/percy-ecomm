@@ -11,6 +11,7 @@ class Service(Base):
     name = Column(String(255), unique=True, index=True, nullable=False)
     image = Column(String(1024), default="")
     accounts = Column(JSON, default=list)
+    credits = Column(JSON, default=dict)  # per-duration credits mapping, e.g., {"7days": 1, "1month": 2}
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_active = Column(Boolean, default=True, nullable=False)
