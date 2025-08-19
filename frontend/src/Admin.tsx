@@ -110,10 +110,10 @@ export default function Admin() {
   const fetchData = async () => {
     try {
               const [servicesRes, usersRes] = await Promise.all([
-          fetch('http://127.0.0.1:8000/admin/services', {
+          fetch('https://www.api.webmixo.com/admin/services', {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
           }),
-          fetch('http://127.0.0.1:8000/admin/users', {
+          fetch('https://www.api.webmixo.com/admin/users', {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
           })
         ]);
@@ -144,7 +144,7 @@ export default function Admin() {
 
   const handleCreateService = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/admin/services', {
+      const response = await fetch('https://www.api.webmixo.com/admin/services', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -173,7 +173,7 @@ export default function Admin() {
 
       const handleEditService = async (serviceName: string) => {
       try {
-        const response = await fetch(`http://127.0.0.1:8000/admin/services/${serviceName}`, {
+        const response = await fetch(`https://www.api.webmixo.com/admin/services/${serviceName}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -204,7 +204,7 @@ export default function Admin() {
 
       const startEditService = async (serviceName: string) => {
       try {
-        const response = await fetch(`http://127.0.0.1:8000/admin/services/${serviceName}`, {
+        const response = await fetch(`https://www.api.webmixo.com/admin/services/${serviceName}`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
 
@@ -236,7 +236,7 @@ export default function Admin() {
     if (!confirm(`Are you sure you want to delete ${serviceName}? This will also remove all user subscriptions to this service.`)) return;
 
     try {
-              const response = await fetch(`http://127.0.0.1:8000/admin/services/${serviceName}`, {
+              const response = await fetch(`https://www.api.webmixo.com/admin/services/${serviceName}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
@@ -271,7 +271,7 @@ export default function Admin() {
 
     setAddingSubscription(true);
     try {
-      const result = await callApi<any>('http://127.0.0.1:8000/admin/assign-subscription', {
+      const result = await callApi<any>('https://www.api.webmixo.com/admin/assign-subscription', {
         method: 'POST',
         body: JSON.stringify({
           username: selectedUser,
@@ -319,7 +319,7 @@ export default function Admin() {
         requestBody.service_id = selectedSubscription;
       }
 
-      const response = await fetch('http://127.0.0.1:8000/admin/remove-credits', {
+      const response = await fetch('https://www.api.webmixo.com/admin/remove-credits', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -356,7 +356,7 @@ export default function Admin() {
         alert('Please enter a valid positive number');
         return;
       }
-      const response = await fetch('http://127.0.0.1:8000/admin/remove-credits', {
+      const response = await fetch('https://www.api.webmixo.com/admin/remove-credits', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -382,7 +382,7 @@ export default function Admin() {
     if (!username) return;
     try {
       setLoadingSubsFor(username);
-              const res = await fetch(`http://127.0.0.1:8000/admin/users/${encodeURIComponent(username)}/subscriptions`, {
+              const res = await fetch(`https://www.api.webmixo.com/admin/users/${encodeURIComponent(username)}/subscriptions`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       if (!res.ok) throw new Error(await res.text());
@@ -413,7 +413,7 @@ export default function Admin() {
         requestBody.service_id = selectedSubscription;
       }
 
-      const response = await fetch('http://127.0.0.1:8000/admin/add-credits', {
+      const response = await fetch('https://www.api.webmixo.com/admin/add-credits', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -906,7 +906,7 @@ export default function Admin() {
                                         }
                                         const ddmmyyyy = input.replace(/-/g, '/');
                                         try {
-                                          const res = await fetch(`http://127.0.0.1:8000/admin/users/update-subscription-end-date`, {
+                                          const res = await fetch(`https://www.api.webmixo.com/admin/users/update-subscription-end-date`, {
                                             method: 'POST',
                                             headers: {
                                               'Content-Type': 'application/json',
@@ -915,7 +915,7 @@ export default function Admin() {
                                             body: JSON.stringify({ username: userSubs.username, service_id: s.account_id, end_date: ddmmyyyy })
                                           });
                                           if (!res.ok) throw new Error(await res.text());
-                                          const refreshed = await fetch(`http://127.0.0.1:8000/admin/users/${encodeURIComponent(userSubs.username)}/subscriptions`, {
+                                          const refreshed = await fetch(`https://www.api.webmixo.com/admin/users/${encodeURIComponent(userSubs.username)}/subscriptions`, {
                                             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                                           });
                                           if (refreshed.ok) {
@@ -950,7 +950,7 @@ export default function Admin() {
                                   onClick={async () => {
                                     if (!confirm(`Remove subscription ${s.account_id} from ${userSubs.username}?`)) return;
                                     try {
-                                      const res = await fetch(`http://127.0.0.1:8000/admin/users/remove-subscription`, {
+                                      const res = await fetch(`https://www.api.webmixo.com/admin/users/remove-subscription`, {
                                         method: 'POST',
                                         headers: {
                                           'Content-Type': 'application/json',
@@ -959,7 +959,7 @@ export default function Admin() {
                                         body: JSON.stringify({ username: userSubs.username, service_id: s.account_id })
                                       });
                                       if (!res.ok) throw new Error(await res.text());
-                                      const refreshed = await fetch(`http://127.0.0.1:8000/admin/users/${encodeURIComponent(userSubs.username)}/subscriptions`, {
+                                      const refreshed = await fetch(`https://www.api.webmixo.com/admin/users/${encodeURIComponent(userSubs.username)}/subscriptions`, {
                                         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                                       });
                                       if (refreshed.ok) {
