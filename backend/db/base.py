@@ -22,11 +22,6 @@ SAMPLE_USERS = {
         ],
         "credits": 100000,
         "btc_address": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
-        "notifications": [
-            "Welcome to Valuesubs E-commerce Admin Panel!",
-            "You have 3 active service subscriptions",
-            "System maintenance scheduled for tomorrow"
-        ],
         "profile": {
             "first_name": "Admin",
             "last_name": "User",
@@ -51,7 +46,6 @@ SAMPLE_USERS = {
         ],
         "credits": 500,
         "btc_address": "btc-testuser",
-        "notifications": ["Welcome to Valuesubs E-commerce!"],
         "profile": {
             "first_name": "Test",
             "last_name": "User",
@@ -77,11 +71,6 @@ SAMPLE_USERS = {
         ],
         "credits": 2500,
         "btc_address": "bc1qpremiumuser123456789",
-        "notifications": [
-            "Welcome to Valuesubs E-commerce!",
-            "You have 2 active subscriptions",
-            "New service available: Jasper AI"
-        ],
         "profile": {
             "first_name": "Premium",
             "last_name": "Customer",
@@ -144,7 +133,6 @@ def initialize_database():
                         credits=user_data.get("credits", 0),
                         btc_address=user_data.get("btc_address", ""),
                         services=user_data.get("services", []),
-                        notifications=user_data.get("notifications", []),
                         profile=user_data.get("profile", {}),
                     ))
                 db.commit()

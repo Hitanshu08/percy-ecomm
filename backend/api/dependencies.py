@@ -33,7 +33,6 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> UserSchema:
                 services=user.services or [],
                 credits=user.credits,
                 btc_address=user.btc_address or "",
-                notifications=user.notifications or [],
             )
         finally:
             db.close()

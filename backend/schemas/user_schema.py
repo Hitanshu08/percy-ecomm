@@ -18,7 +18,6 @@ class User(UserBase):
     services: List[Dict[str, Any]]
     credits: int
     btc_address: str
-    notifications: List[str]
 
     class Config:
         from_attributes = True

@@ -30,7 +30,6 @@ def create_user(user: UserCreate):
                 services=[],
                 credits=0,
                 btc_address=f"btc-{user.username}",
-                notifications=["Welcome to Valuesubs E-commerce!"],
                 profile={
                     "first_name": "",
                     "last_name": "",
@@ -125,7 +124,6 @@ def get_user_profile(username: str):
                 "role": user.role,
                 "credits": user.credits,
                 "btc_address": user.btc_address,
-                "notifications": user.notifications or [],
                 "profile": user.profile or {},
             }
         finally:
@@ -194,7 +192,6 @@ def get_user_by_username(username: str):
                 services=user.services or [],
                 credits=user.credits,
                 btc_address=user.btc_address or "",
-                notifications=user.notifications or [],
             )
         finally:
             db.close()
