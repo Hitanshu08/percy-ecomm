@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { apiCall } from '../api';
+import { apiCall } from './apiClient';
 
 interface ApiResponse<T> {
   data: T | null;

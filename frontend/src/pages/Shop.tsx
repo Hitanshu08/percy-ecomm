@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from './contexts/AuthContext';
-import { useApi } from './hooks/useApi';
-import { getValidToken } from './utils/auth';
-import { config } from './config';
+import { useAuth } from '../contexts/AuthContext';
+import { useApi } from '../lib/useApi';
+import { getValidToken } from '../lib/auth';
+import { config } from '../config/index';
 
 interface Service {
   name: string;

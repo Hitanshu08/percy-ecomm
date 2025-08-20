@@ -1,9 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from './contexts/AuthContext';
-import { useTheme } from './contexts/ThemeContext';
-import { getServices, createService, updateService, deleteService, adminAddSubscription } from './api';
-import { useApi } from './hooks/useApi';
-import { config } from './config';
+import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+import {
+  getServices,
+  createService,
+  updateService,
+  deleteService,
+  adminAddSubscription,
+  getAdminServices,
+  getAdminUsers,
+  getService,
+  getAdminUserSubscriptions,
+  addCredits as apiAddCredits,
+  removeCredits as apiRemoveCredits,
+  putServiceCredits,
+  getServiceCredits,
+  updateUserSubscriptionEndDate,
+  removeUserSubscription,
+} from '../lib/apiClient';
+import { useApi } from '../lib/useApi';
+import { config } from '../config/index';
 
 interface ServiceAccount {
   id: string;
@@ -33,7 +49,6 @@ interface User {
 export default function Admin() {
   const { user } = useAuth();
   const { theme } = useTheme();
-  const { callApi } = useApi();
   const [services, setServices] = useState<Service[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,33 +125,15 @@ export default function Admin() {
     return 0;
   };
 
-  const API_URL = config.getApiUrl();
+
   const fetchData = async () => {
     try {
-              const [servicesRes, usersRes] = await Promise.all([
-          fetch(`${API_URL}/admin/services`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-          }),
-          fetch(`${API_URL}/admin/users`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-          })
-        ]);
-
-      if (servicesRes.ok) {
-        const servicesData = await servicesRes.json();
-        setServices(servicesData.services || []);
-      } else {
-        console.error('Failed to fetch services:', servicesRes.status);
-        setServices([]);
-      }
-
-      if (usersRes.ok) {
-        const usersData = await usersRes.json();
-        setUsers(usersData.users || []);
-      } else {
-        console.error('Failed to fetch users:', usersRes.status);
-        setUsers([]);
-      }
+      const [servicesData, usersData] = await Promise.all([
+        getAdminServices(),
+        getAdminUsers(),
+      ]);
+      setServices((servicesData as any).services || (servicesData as any) || []);
+      setUsers((usersData as any).users || (usersData as any) || []);
     } catch (error) {
       console.error('Error fetching data:', error);
       setServices([]);
@@ -148,45 +145,23 @@ export default function Admin() {
 
   const handleCreateService = async () => {
     try {
-      const response = await fetch(`${API_URL}/admin/services`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(newService)
+      await createService(newService as any);
+      alert('Service created successfully!');
+      setNewService({
+        name: '',
+        image: '',
+        accounts: [{ id: '', password: '', end_date: '', is_active: true }]
       });
-
-      if (response.ok) {
-        alert('Service created successfully!');
-        setNewService({
-          name: '',
-          image: '',
-          accounts: [{ id: '', password: '', end_date: '', is_active: true }]
-        });
-        fetchData();
-      } else {
-        const error = await response.text();
-        alert(`Error: ${error}`);
-      }
-    } catch (error) {
+      fetchData();
+    } catch (error: any) {
       console.error('Error creating service:', error);
-      alert('Error creating service');
+      alert(`Error: ${error?.message || 'Error creating service'}`);
     }
   };
 
       const handleEditService = async (serviceName: string) => {
       try {
-        const response = await fetch(`${API_URL}/admin/services/${serviceName}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(newService)
-      });
-
-      if (response.ok) {
+        await updateService(serviceName, newService as any);
         alert('Service updated successfully!');
         setEditingService(null);
         setShowEditForm(false);
@@ -196,24 +171,15 @@ export default function Admin() {
           accounts: [{ id: '', password: '', end_date: '', is_active: true }]
         });
         fetchData();
-      } else {
-        const error = await response.text();
-        alert(`Error: ${error}`);
+      } catch (error: any) {
+        console.error('Error updating service:', error);
+        alert(`Error: ${error?.message || 'Error updating service'}`);
       }
-    } catch (error) {
-      console.error('Error updating service:', error);
-      alert('Error updating service');
-    }
-  };
+    };
 
       const startEditService = async (serviceName: string) => {
       try {
-        const response = await fetch(`${API_URL}/admin/services/${serviceName}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-
-      if (response.ok) {
-        const serviceData = await response.json();
+        const serviceData: any = await getService(serviceName);
         setNewService({
           name: serviceData.name,
           image: serviceData.image,
@@ -227,48 +193,34 @@ export default function Admin() {
         });
         setEditingService(serviceName);
         setShowEditForm(true);
-      } else {
-        const error = await response.text();
-        alert(`Error: ${error}`);
+      } catch (error: any) {
+        console.error('Error fetching service:', error);
+        alert(`Error fetching service details: ${error?.message || ''}`);
       }
-    } catch (error) {
-      console.error('Error fetching service:', error);
-      alert('Error fetching service details');
-    }
-  };
+    };
 
   const handleDeleteService = async (serviceName: string) => {
     if (!confirm(`Are you sure you want to delete ${serviceName}? This will also remove all user subscriptions to this service.`)) return;
 
     try {
-              const response = await fetch(`${API_URL}/admin/services/${serviceName}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        const message = `Service deleted successfully!\n\n${result.message}\nUsers updated: ${result.users_updated || 0}\nAccount IDs removed: ${result.account_ids_removed?.join(', ') || 'None'}`;
-        alert(message);
-        
-        // Refresh data and update any expanded user subscriptions
-        await fetchData();
-        
-        // If any user has expanded subscriptions, refresh them to show updated data
-        if (expandedUser && subsByUser[expandedUser]) {
-          await fetchUserSubscriptions(expandedUser);
-        }
-      } else {
-        const error = await response.text();
-        alert(`Error: ${error}`);
+      const result: any = await deleteService(serviceName);
+      const message = `Service deleted successfully!\n\n${result.message}\nUsers updated: ${result.users_updated || 0}\nAccount IDs removed: ${result.account_ids_removed?.join(', ') || 'None'}`;
+      alert(message);
+      
+      // Refresh data and update any expanded user subscriptions
+      await fetchData();
+      
+      // If any user has expanded subscriptions, refresh them to show updated data
+      if (expandedUser && subsByUser[expandedUser]) {
+        await fetchUserSubscriptions(expandedUser);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting service:', error);
-      alert('Error deleting service');
+      alert(`Error deleting service: ${error?.message || ''}`);
     }
   };
 
-  const handleAddSubscription = async () => {
+    const handleAddSubscription = async () => {
     if (!selectedUser || !selectedService || !selectedDuration) {
       alert('Please select user, service, and duration');
       return;
@@ -276,15 +228,7 @@ export default function Admin() {
 
     setAddingSubscription(true);
     try {
-      const result = await callApi<any>(`${API_URL}/admin/assign-subscription`, {
-        method: 'POST',
-        body: JSON.stringify({
-          username: selectedUser,
-          service_name: selectedService,
-          duration: selectedDuration
-        })
-      });
-
+      const result: any = await adminAddSubscription(selectedUser, selectedService, selectedDuration);
       const message = `Success! ${result.message}`;
       alert(message);
       if (selectedUser && expandedUser === selectedUser) {
@@ -294,15 +238,14 @@ export default function Admin() {
       setSelectedService('');
       setSelectedDuration('');
       fetchData();
-    } catch (error) {
-        try {
-          console.error('Error adding subscription:', error);
-          const parsedObject = JSON.parse((error as any).message);
-          alert(parsedObject.detail);
+    } catch (error: any) {
+      try {
+        console.error('Error adding subscription:', error);
+        const parsedObject = JSON.parse((error as any).message);
+        alert(parsedObject.detail);
       } catch (err) {
         alert('Failed to add subscription. Please try again.');
       }
-
     } finally {
       setAddingSubscription(false);
     }
@@ -315,40 +258,18 @@ export default function Admin() {
     }
 
     try {
-      const requestBody: any = {
-        username: creditUser,
-        credits: creditAmount
-      };
-
-      if (selectedSubscription) {
-        requestBody.service_id = selectedSubscription;
-      }
-
-      const response = await fetch(`${API_URL}/admin/remove-credits`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (response.ok) {
-        const message = selectedSubscription 
-          ? `Removed ${creditAmount} credits from subscription ${selectedSubscription} for ${creditUser}`
-          : `Removed ${creditAmount} credits from ${creditUser}`;
-        alert(message);
-        setCreditUser('');
-        setSelectedSubscription('');
-        setCreditAmount(0);
-        fetchData();
-      } else {
-        const error = await response.text();
-        alert(`Error: ${error}`);
-      }
-    } catch (error) {
+      await apiRemoveCredits(creditUser, creditAmount, selectedSubscription || undefined);
+      const message = selectedSubscription 
+        ? `Removed ${creditAmount} credits from subscription ${selectedSubscription} for ${creditUser}`
+        : `Removed ${creditAmount} credits from ${creditUser}`;
+      alert(message);
+      setCreditUser('');
+      setSelectedSubscription('');
+      setCreditAmount(0);
+      fetchData();
+    } catch (error: any) {
       console.error('Error removing credits:', error);
-      alert('Error removing credits');
+      alert(`Error removing credits: ${error?.message || ''}`);
     }
   };
 
@@ -361,22 +282,10 @@ export default function Admin() {
         alert('Please enter a valid positive number');
         return;
       }
-      const response = await fetch(`${API_URL}/admin/remove-credits`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ username, credits: amount, service_id: serviceId })
-      });
-      if (response.ok) {
-        alert(`Removed ${amount} credits from ${username}'s subscription ${serviceId}`);
-        await fetchUserSubscriptions(username);
-        fetchData();
-      } else {
-        const error = await response.text();
-        alert(`Error: ${error}`);
-      }
+      await apiRemoveCredits(username, amount, serviceId);
+      alert(`Removed ${amount} credits from ${username}'s subscription ${serviceId}`);
+      await fetchUserSubscriptions(username);
+      fetchData();
     } catch (e) {
       console.error('Error removing credits from subscription', e);
       alert('Error removing credits');
@@ -387,11 +296,7 @@ export default function Admin() {
     if (!username) return;
     try {
       setLoadingSubsFor(username);
-              const res = await fetch(`${API_URL}/admin/users/${encodeURIComponent(username)}/subscriptions`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
+      const data = await getAdminUserSubscriptions(username);
       setSubsByUser(prev => ({ ...prev, [username]: data }));
       setUserSubs(data);
     } catch (e) {
@@ -408,27 +313,7 @@ export default function Admin() {
     }
 
     try {
-      const requestBody: any = {
-        username: creditUser,
-        credits: creditAmount
-      };
-
-      // If a subscription is selected, add it to the request
-      if (selectedSubscription) {
-        requestBody.service_id = selectedSubscription;
-      }
-
-      const response = await fetch(`${API_URL}/admin/add-credits`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (response.ok) {
-        const result = await response.json();
+      const result = await apiAddCredits(creditUser, creditAmount, selectedSubscription || undefined);
         const message = selectedSubscription 
           ? `Added ${creditAmount} credits to subscription ${selectedSubscription} for ${creditUser}`
           : `Added ${creditAmount} credits to ${creditUser}`;
@@ -437,13 +322,9 @@ export default function Admin() {
         setSelectedSubscription('');
         setCreditAmount(0);
         fetchData();
-      } else {
-        const error = await response.text();
-        alert(`Error: ${error}`);
-      }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding credits:', error);
-      alert('Error adding credits');
+      alert(`Error adding credits: ${error?.message || ''}`);
     }
   };
 
@@ -745,10 +626,7 @@ export default function Admin() {
                           onClick={async () => {
                             setEditingCreditsFor(service.name);
                             try {
-                              const res = await fetch(`https://www.api.webmixo.com/admin/services/${encodeURIComponent(service.name)}/credits`, {
-                                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                              });
-                              const data = res.ok ? await res.json() : { credits: {} };
+                              const data: any = await getServiceCredits(service.name);
                               const durations = config.getSubscriptionDurations();
                               const initial: Record<string, number> = {};
                               Object.entries(durations).forEach(([key, d]: any) => {
@@ -790,14 +668,7 @@ export default function Admin() {
                             <button
                               onClick={async () => {
                                 try {
-                                  await fetch(`https://www.api.webmixo.com/admin/services/${encodeURIComponent(service.name)}/credits`, {
-                                    method: 'PUT',
-                                    headers: {
-                                      'Content-Type': 'application/json',
-                                      'Authorization': `Bearer ${localStorage.getItem('token')}`
-                                    },
-                                    body: JSON.stringify(creditsForm)
-                                  });
+                                  await putServiceCredits(service.name, creditsForm);
                                   alert('Credits updated');
                                   setEditingCreditsFor(null);
                                 } catch (e) {
@@ -962,12 +833,11 @@ export default function Admin() {
                               <div className="space-y-2">
                                 {subsByUser[user.username].subscriptions.map((s: any, idx: number) => (
                                   <div key={idx} className="p-2 border border-gray-200 dark:border-gray-700 rounded">
-                                    <div className="grid grid-cols-1 md:grid-cols-5 gap-2 text-sm">
-                                      <div><span className="font-medium">Service:</span> {s.service_name}</div>
-                                      <div><span className="font-medium">Account:</span> {s.account_id}</div>
-                                      <div><span className="font-medium">End Date:</span> {s.end_date}</div>
-                                      <div><span className="font-medium">Active:</span> {s.is_active ? 'Yes' : 'No'}</div>
-                                      <div />
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
+                                      <div className="break-words"><span className="font-medium">Service:</span> {s.service_name}</div>
+                                      <div className="break-words"><span className="font-medium">Account:</span> {s.account_id}</div>
+                                      <div className="break-words"><span className="font-medium">End Date:</span> {s.end_date}</div>
+                                      <div className="break-words"><span className="font-medium">Active:</span> {s.is_active ? 'Yes' : 'No'}</div>
                                     </div>
                                   </div>
                                 ))}
@@ -997,10 +867,10 @@ export default function Admin() {
                         {userSubs.subscriptions.map((s: any, idx: number) => (
                           <div key={idx} className="p-3 border border-gray-200 dark:border-gray-700 rounded-md">
                             <div className="grid grid-cols-1 md:grid-cols-7 gap-3 text-sm items-start">
-                              <div><span className="font-medium">Service:</span> {s.service_name}</div>
-                              <div><span className="font-medium">Account:</span> {s.account_id}</div>
-                              <div><span className="font-medium">End Date:</span> {s.end_date}</div>
-                              <div><span className="font-medium">Active:</span> {s.is_active ? 'Yes' : 'No'}</div>
+                              <div className='break-words'><span className="font-medium">Service:</span> {s.service_name}</div>
+                              <div className='break-words'><span className="font-medium">Account:</span> {s.account_id}</div>
+                              <div className='break-words'><span className="font-medium">End Date:</span> {s.end_date}</div>
+                              <div className='break-words'><span className="font-medium">Active:</span> {s.is_active ? 'Yes' : 'No'}</div>
                               <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-2 md:col-span-3">
                                 {!showEndDateEdit[s.account_id] ? (
                                   <button
@@ -1026,22 +896,9 @@ export default function Admin() {
                                         }
                                         const ddmmyyyy = formatDateForDisplay(iso);
                                         try {
-                                          const res = await fetch(`https://www.api.webmixo.com/admin/users/update-subscription-end-date`, {
-                                            method: 'POST',
-                                            headers: {
-                                              'Content-Type': 'application/json',
-                                              'Authorization': `Bearer ${localStorage.getItem('token')}`
-                                            },
-                                            body: JSON.stringify({ username: userSubs.username, service_id: s.account_id, end_date: ddmmyyyy })
-                                          });
-                                          if (!res.ok) throw new Error(await res.text());
-                                          const refreshed = await fetch(`https://www.api.webmixo.com/admin/users/${encodeURIComponent(userSubs.username)}/subscriptions`, {
-                                            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                                          });
-                                          if (refreshed.ok) {
-                                            const data = await refreshed.json();
-                                            setUserSubs(data);
-                                          }
+                                          await updateUserSubscriptionEndDate(userSubs.username, s.account_id, ddmmyyyy);
+                                          const data = await getAdminUserSubscriptions(userSubs.username);
+                                          setUserSubs(data);
                                           setShowEndDateEdit(prev => ({ ...prev, [s.account_id]: false }));
                                           setEndDateEdits(prev => ({ ...prev, [s.account_id]: '' }));
                                           alert('End date updated');
@@ -1070,22 +927,9 @@ export default function Admin() {
                                   onClick={async () => {
                                     if (!confirm(`Remove subscription ${s.account_id} from ${userSubs.username}?`)) return;
                                     try {
-                                      const res = await fetch(`https://www.api.webmixo.com/admin/users/remove-subscription`, {
-                                        method: 'POST',
-                                        headers: {
-                                          'Content-Type': 'application/json',
-                                          'Authorization': `Bearer ${localStorage.getItem('token')}`
-                                        },
-                                        body: JSON.stringify({ username: userSubs.username, service_id: s.account_id })
-                                      });
-                                      if (!res.ok) throw new Error(await res.text());
-                                      const refreshed = await fetch(`https://www.api.webmixo.com/admin/users/${encodeURIComponent(userSubs.username)}/subscriptions`, {
-                                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                                      });
-                                      if (refreshed.ok) {
-                                        const data = await refreshed.json();
-                                        setUserSubs(data);
-                                      }
+                                      await removeUserSubscription(userSubs.username, s.account_id);
+                                      const data = await getAdminUserSubscriptions(userSubs.username);
+                                      setUserSubs(data);
                                       alert('Subscription removed');
                                     } catch (e) {
                                       alert('Failed to remove subscription');
@@ -1171,9 +1015,8 @@ export default function Admin() {
                 <p>• Admin can add additional credits to specific subscriptions or globally</p>
                 <br />
                 <p><strong>Service Credit Examples:</strong></p>
-                <p>• Quillbot: 100 (7d) → 3500 (1y)</p>
-                <p>• Grammarly: 80 (7d) → 3000 (1y)</p>
-                <p>• ChatGPT: 150 (7d) → 4500 (1y)</p>
+                <p>• Quillbot: 1 (7d) → 350 (1y)</p>
+                <p>• Grammarly: 2 (7d) → 650 (1y)</p>
               </div>
             </div>
           </div>

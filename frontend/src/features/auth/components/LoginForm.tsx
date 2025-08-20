@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { login } from '../api';
-import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
+import { login } from '../../../lib/apiClient';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useTheme } from '../../../contexts/ThemeContext';
 
 interface LoginFormProps {
   onSwitchToSignup: () => void;

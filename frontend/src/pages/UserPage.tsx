@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { useAuth } from "./contexts/AuthContext";
-import { useTheme } from "./contexts/ThemeContext";
-import { changePassword, getMe } from "./api";
+import { useAuth } from "../contexts/AuthContext";
+import { useTheme } from "../contexts/ThemeContext";
+import { changePassword, getMe } from "../lib/apiClient";
 
 interface UserData {
   username: string;

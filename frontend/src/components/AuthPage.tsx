@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import SignupForm from './SignupForm';
-import LoginForm from './LoginForm';
-import ForgotPasswordForm from './ForgotPasswordForm';
+import SignupForm from '../features/auth/components/SignupForm';
+import LoginForm from '../features/auth/components/LoginForm';
+import ForgotPasswordForm from '../features/auth/components/ForgotPasswordForm';
 import { useTheme } from '../contexts/ThemeContext';
 
 type AuthMode = 'login' | 'signup' | 'forgot-password';

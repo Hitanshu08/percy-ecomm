@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getDashboard } from './api';
+import { getDashboard } from '../lib/apiClient';
 
 interface DashboardData {
   username: string;

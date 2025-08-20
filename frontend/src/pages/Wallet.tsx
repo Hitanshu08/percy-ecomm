@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from './contexts/AuthContext';
-import { useTheme } from './contexts/ThemeContext';
-import { getWallet } from './api';
-import { config } from './config';
+import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { getWallet } from '../lib/apiClient';
+import { config } from '../config/index';
 
 interface WalletData {
   credits: number;

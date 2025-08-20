@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMe, storeUserData, clearUserData } from '../api';
-import { getValidToken, refreshAccessToken } from '../utils/auth';
+import { getMe, storeUserData, clearUserData } from '../lib/apiClient';
+import { getValidToken, refreshAccessToken } from '../lib/auth';
 
 interface User {
   username: string;

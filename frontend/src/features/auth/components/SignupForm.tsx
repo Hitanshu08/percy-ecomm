@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { signup, login } from '../api';
-import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
-import TermsAndConditions from './TermsAndConditions';
+import { signup, login } from '../../../lib/apiClient';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useTheme } from '../../../contexts/ThemeContext';
+import TermsAndConditions from '../../../components/TermsAndConditions';
 
 interface SignupFormProps {
   onSuccess: () => void;

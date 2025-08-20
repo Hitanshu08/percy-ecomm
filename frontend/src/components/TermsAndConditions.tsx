@@ -13,7 +13,7 @@ export default function TermsAndConditions({ onBack }: TermsAndConditionsProps) 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <button
+          {/* <button
             onClick={onBack}
             className={`flex items-center space-x-2 mb-4 px-4 py-2 rounded-lg transition-colors ${
               theme === 'dark'
@@ -25,7 +25,7 @@ export default function TermsAndConditions({ onBack }: TermsAndConditionsProps) 
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
             <span>Back</span>
-          </button>
+          </button> */}
           <h1 className="text-3xl font-bold mb-2">Terms and Conditions</h1>
           <p className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
             Last updated: {new Date().toLocaleDateString()}
@@ -138,24 +138,6 @@ export default function TermsAndConditions({ onBack }: TermsAndConditionsProps) 
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex justify-between items-center">
-            <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-              © 2025 Valuesubs. All rights reserved.
-            </p>
-            <button
-              onClick={onBack}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                theme === 'dark'
-                  ? 'bg-gray-700 hover:bg-gray-600 text-white'
-                  : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
-              }`}
-            >
-              Back to Signup
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

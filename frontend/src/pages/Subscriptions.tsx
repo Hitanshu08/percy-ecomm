@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { useTheme } from "./contexts/ThemeContext";
-import { getSubscriptions } from "./api";
+import { useTheme } from "../contexts/ThemeContext";
+import { getSubscriptions } from "../lib/apiClient";
 
 interface Subscription {
   service_name: string;

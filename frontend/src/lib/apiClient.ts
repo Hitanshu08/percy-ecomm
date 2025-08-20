@@ -1,4 +1,4 @@
-import { config } from './config';
+import { config } from '../config/index';
 
 const API_URL = config.getApiUrl();
 
@@ -370,10 +370,12 @@ export async function getAdminUserSubscriptions(username: string) {
   return apiCall(`${API_URL}/admin/users/${encodeURIComponent(username)}/subscriptions`);
 }
 
-export async function addCredits(username: string, credits: number) {
+export async function addCredits(username: string, credits: number, serviceId?: string) {
+  const body: Record<string, unknown> = { username, credits };
+  if (serviceId) body.service_id = serviceId;
   return apiCall(`${API_URL}/admin/add-credits`, {
     method: 'POST',
-    body: JSON.stringify({ username, credits })
+    body: JSON.stringify(body)
   });
 }
 
@@ -394,4 +396,39 @@ export async function purchaseSubscription(serviceName: string, duration: string
 
 export async function getCurrentSubscriptions() {
   return apiCall(`${API_URL}/user/subscriptions/current`);
+}
+
+// Fetch a single service by name
+export async function getService(serviceName: string) {
+  return apiCall(`${API_URL}/admin/services/${encodeURIComponent(serviceName)}`);
+}
+
+// Remove credits globally or for a specific subscription
+export async function removeCredits(username: string, credits: number, serviceId?: string) {
+  const body: Record<string, unknown> = { username, credits };
+  if (serviceId) body.service_id = serviceId;
+  return apiCall(`${API_URL}/admin/remove-credits`, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+}
+
+// Update a user's subscription end date
+export async function updateUserSubscriptionEndDate(
+  username: string,
+  serviceId: string,
+  endDate: string
+) {
+  return apiCall(`${API_URL}/admin/users/update-subscription-end-date`, {
+    method: 'POST',
+    body: JSON.stringify({ username, service_id: serviceId, end_date: endDate })
+  });
+}
+
+// Remove a user's subscription
+export async function removeUserSubscription(username: string, serviceId: string) {
+  return apiCall(`${API_URL}/admin/users/remove-subscription`, {
+    method: 'POST',
+    body: JSON.stringify({ username, service_id: serviceId })
+  });
 }

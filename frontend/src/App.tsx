@@ -5,17 +5,19 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { useAuth } from "./contexts/AuthContext";
 import { useTheme } from "./contexts/ThemeContext";
 import AuthPage from "./components/AuthPage";
-import { config } from "./config";
+import { config } from "./config/index";
 import Header from "./components/Header";
-import Dashboard from "./Dashboard";
-import UserPage from "./UserPage";
-import Wallet from "./Wallet";
-import Shop from "./Shop";
-import ContactUs from "./ContactUs";
-import Subscriptions from "./Subscriptions";
-import Admin from "./Admin";
-import AccessDenied from "./AccessDenied";
-import NotFound from "./NotFound";
+import { Footer } from "./components/layout";
+import Dashboard from "./pages/Dashboard";
+import UserPage from "./pages/UserPage";
+import Wallet from "./pages/Wallet";
+import Shop from "./pages/Shop";
+import ContactUs from "./pages/ContactUs";
+import Subscriptions from "./pages/Subscriptions";
+import Admin from "./pages/Admin";
+import AccessDenied from "./pages/AccessDenied";
+import NotFound from "./pages/NotFound";
+import TermsAndConditions from "./pages/TermsAndConditions";
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -62,11 +64,13 @@ function AppLayout() {
           <Route path="/shop" element={config.isFeatureEnabled('shop') ? <Shop /> : <AccessDenied />} />
           <Route path="/subscriptions" element={<Subscriptions />} />
           <Route path="/contact" element={<ContactUs />} />
+          <Route path="/terms" element={<TermsAndConditions />} />
           <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           <Route path="/access-denied" element={<AccessDenied />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
+      <Footer />
     </div>
   );
 }
