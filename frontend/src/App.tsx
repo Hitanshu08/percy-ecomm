@@ -57,7 +57,7 @@ function AppLayout() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Routes>
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/user" element={<UserPage />} />
+          <Route path="/profile" element={<UserPage />} />
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/shop" element={config.isFeatureEnabled('shop') ? <Shop /> : <AccessDenied />} />
           <Route path="/subscriptions" element={<Subscriptions />} />

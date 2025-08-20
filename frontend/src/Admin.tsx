@@ -110,13 +110,14 @@ export default function Admin() {
     return 0;
   };
 
+  const API_URL = config.getApiUrl();
   const fetchData = async () => {
     try {
               const [servicesRes, usersRes] = await Promise.all([
-          fetch('https://www.api.webmixo.com/admin/services', {
+          fetch(`${API_URL}/admin/services`, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
           }),
-          fetch('https://www.api.webmixo.com/admin/users', {
+          fetch(`${API_URL}/admin/users`, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
           })
         ]);
@@ -147,7 +148,7 @@ export default function Admin() {
 
   const handleCreateService = async () => {
     try {
-      const response = await fetch('https://www.api.webmixo.com/admin/services', {
+      const response = await fetch(`${API_URL}/admin/services`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -176,7 +177,7 @@ export default function Admin() {
 
       const handleEditService = async (serviceName: string) => {
       try {
-        const response = await fetch(`https://www.api.webmixo.com/admin/services/${serviceName}`, {
+        const response = await fetch(`${API_URL}/admin/services/${serviceName}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -207,7 +208,7 @@ export default function Admin() {
 
       const startEditService = async (serviceName: string) => {
       try {
-        const response = await fetch(`https://www.api.webmixo.com/admin/services/${serviceName}`, {
+        const response = await fetch(`${API_URL}/admin/services/${serviceName}`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
 
@@ -240,7 +241,7 @@ export default function Admin() {
     if (!confirm(`Are you sure you want to delete ${serviceName}? This will also remove all user subscriptions to this service.`)) return;
 
     try {
-              const response = await fetch(`https://www.api.webmixo.com/admin/services/${serviceName}`, {
+              const response = await fetch(`${API_URL}/admin/services/${serviceName}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
@@ -275,7 +276,7 @@ export default function Admin() {
 
     setAddingSubscription(true);
     try {
-      const result = await callApi<any>('https://www.api.webmixo.com/admin/assign-subscription', {
+      const result = await callApi<any>(`${API_URL}/admin/assign-subscription`, {
         method: 'POST',
         body: JSON.stringify({
           username: selectedUser,
@@ -323,7 +324,7 @@ export default function Admin() {
         requestBody.service_id = selectedSubscription;
       }
 
-      const response = await fetch('https://www.api.webmixo.com/admin/remove-credits', {
+      const response = await fetch(`${API_URL}/admin/remove-credits`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -360,7 +361,7 @@ export default function Admin() {
         alert('Please enter a valid positive number');
         return;
       }
-      const response = await fetch('https://www.api.webmixo.com/admin/remove-credits', {
+      const response = await fetch(`${API_URL}/admin/remove-credits`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -386,7 +387,7 @@ export default function Admin() {
     if (!username) return;
     try {
       setLoadingSubsFor(username);
-              const res = await fetch(`https://www.api.webmixo.com/admin/users/${encodeURIComponent(username)}/subscriptions`, {
+              const res = await fetch(`${API_URL}/admin/users/${encodeURIComponent(username)}/subscriptions`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       if (!res.ok) throw new Error(await res.text());
@@ -417,7 +418,7 @@ export default function Admin() {
         requestBody.service_id = selectedSubscription;
       }
 
-      const response = await fetch('https://www.api.webmixo.com/admin/add-credits', {
+      const response = await fetch(`${API_URL}/admin/add-credits`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

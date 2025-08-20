@@ -11,16 +11,6 @@ interface Subscription {
   is_active: boolean;
 }
 
-// Dummy images for different services
-const serviceImages: { [key: string]: string } = {
-  "Quillbot": "https://via.placeholder.com/300x200/4F46E5/FFFFFF?text=Quillbot",
-  "Grammarly": "https://via.placeholder.com/300x200/10B981/FFFFFF?text=Grammarly",
-  "ChatGPT": "https://via.placeholder.com/300x200/8B5CF6/FFFFFF?text=ChatGPT",
-  "Jasper": "https://via.placeholder.com/300x200/F59E0B/FFFFFF?text=Jasper",
-  "Copy.ai": "https://via.placeholder.com/300x200/EF4444/FFFFFF?text=Copy.ai",
-  "default": "https://via.placeholder.com/300x200/6B7280/FFFFFF?text=Service"
-};
-
 export default function Subscriptions() {
   const { theme } = useTheme();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -67,22 +57,6 @@ export default function Subscriptions() {
     } catch (err) {
       console.error('Failed to copy to clipboard:', err);
     }
-  };
-
-  const getServiceImage = (serviceId: string) => {
-    // Try to determine service name from service_id
-    if (serviceId.includes('qb')) return serviceImages["Quillbot"];
-    if (serviceId.includes('gram')) return serviceImages["Grammarly"];
-    if (serviceId.includes('chat')) return serviceImages["ChatGPT"];
-    return serviceImages.default;
-  };
-
-  const getServiceName = (serviceId: string) => {
-    // Try to determine service name from service_id
-    if (serviceId.includes('qb')) return "Quillbot";
-    if (serviceId.includes('gram')) return "Grammarly";
-    if (serviceId.includes('chat')) return "ChatGPT";
-    return "Unknown Service";
   };
 
   const formatDate = (dateString: string) => {
@@ -186,11 +160,11 @@ export default function Subscriptions() {
                 <div className="relative h-48 overflow-hidden">
                   {subscription.service_image && subscription.service_image.trim().startsWith('<svg') ? (
                     <div
-                      className="service-logo mx-auto h-48 w-48"
+                      className="service-logo h-48 w-full mx-auto object-cover bg-[ghostwhite]"
                       dangerouslySetInnerHTML={{ __html: subscription.service_image }}
                     />
                   ) : (
-                    <img src={subscription.service_image} alt={subscription.service_name} className="service-logo mx-auto h-48 w-48"/>
+                    <img src={subscription.service_image} alt={subscription.service_name} className="service-logo h-48 w-full mx-auto object-cover bg-[ghostwhite]"/>
                   )}
                   <div className="absolute top-4 right-4">
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(subscription.is_active, subscription.end_date)}`}>

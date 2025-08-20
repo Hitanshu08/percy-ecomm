@@ -88,7 +88,7 @@ class ConfigManager {
   getNavigationItems() {
     return [
       { path: '/dashboard', label: 'Dashboard', icon: 'home' },
-      { path: '/user', label: 'Profile', icon: 'user' },
+      { path: '/profile', label: 'Profile', icon: 'user' },
       { path: '/wallet', label: 'Wallet', icon: 'wallet' },
       { path: '/shop', label: 'Shop', icon: 'shopping' },
       { path: '/subscriptions', label: 'Subscriptions', icon: 'subscription' },

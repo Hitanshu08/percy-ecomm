@@ -55,18 +55,6 @@ const Shop: React.FC = () => {
     }
   };
 
-  // Helper function to format duration labels
-  const formatDurationLabel = (duration: string) => {
-    switch (duration) {
-      case '7days': return '7 Days';
-      case '1month': return '1 Month';
-      case '3months': return '3 Months';
-      case '6months': return '6 Months';
-      case '1year': return '1 Year';
-      default: return 'Unknown';
-    }
-  };
-
   // Check if user has a subscription for a service
   const hasSubscription = (serviceName: string) => {
     return currentSubscriptions.some(sub => sub.service_name === serviceName);
@@ -277,11 +265,11 @@ const Shop: React.FC = () => {
                 <div className="relative h-48">
                   {service.image && service.image.trim().startsWith('<svg') ? (
                     <div
-                      className="service-logo mx-auto h-48 w-48"
+                      className="service-logo h-48 w-full mx-auto object-cover bg-[ghostwhite]"
                       dangerouslySetInnerHTML={{ __html: service.image }}
                     />
                   ) : (
-                    <img src={service.image} alt={service.name} className="service-logo mx-auto h-48 w-48"/>
+                    <img src={service.image} alt={service.name} className="service-logo h-48 w-full mx-auto object-cover bg-[ghostwhite]"/>
                   )}
                   <div className="absolute inset-0 bg-black bg-opacity-20"></div>
                   <div className="absolute top-4 right-4">

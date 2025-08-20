@@ -218,7 +218,7 @@ export default function Header() {
 
                     {/* Menu Items */}
                     <Link
-                      to="/user"
+                      to="/profile"
                       onClick={() => setIsDropdownOpen(false)}
                       className={`block px-4 py-2 text-sm transition-colors ${
                         theme === 'dark'

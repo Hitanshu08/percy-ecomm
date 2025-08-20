@@ -173,11 +173,11 @@ const Dashboard: React.FC = () => {
                     <div className="flex items-center space-x-4">
                       {subscription.service_image && subscription.service_image.trim().startsWith('<svg') ? (
                         <div
-                          className="service-logo h-24 w-24 mx-auto"
+                          className="service-logo h-24 w-full mx-auto object-cover bg-[ghostwhite]"
                           dangerouslySetInnerHTML={{ __html: subscription.service_image }}
                         />
                       ) : (
-                        <img src={subscription.service_image} alt={subscription.service_name} className="service-logo h-24 w-24 mx-auto"/>
+                        <img src={subscription.service_image} alt={subscription.service_name} className="service-logo h-24 w-full mx-auto object-cover bg-[ghostwhite]"/>
                       )}
                       {/* <div dangerouslySetInnerHTML={{ __html: subscription.service_image }} /> */}
                       <div className="flex-1 min-w-0">
