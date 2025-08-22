@@ -3,6 +3,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useApi } from '../lib/useApi';
 import { getValidToken } from '../lib/auth';
 import { config } from '../config/index';
+import { Button, Select } from '../components/ui';
+import { ProductCard, ProductGrid } from '../features/shop/components';
 
 interface Service {
   name: string;
@@ -252,7 +254,7 @@ const Shop: React.FC = () => {
         )}
 
         {/* Services Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <ProductGrid>
           {services.map((service) => {
             const availableDurations = getAvailableDurations(service);
             const hasAvailableOptions = availableDurations.length > 0;
@@ -260,42 +262,22 @@ const Shop: React.FC = () => {
             const currentSubInfo = getCurrentSubscriptionInfo(service.name);
             
             return (
-              <div key={service.name} className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden border border-gray-200 dark:border-gray-700">
-                {/* Service Image */}
-                <div className="relative h-48">
-                  {service.image && service.image.trim().startsWith('<svg') ? (
-                    <div
-                      className="service-logo h-48 w-full mx-auto object-cover bg-[ghostwhite]"
-                      dangerouslySetInnerHTML={{ __html: service.image }}
-                    />
-                  ) : (
-                    <img src={service.image} alt={service.name} className="service-logo h-48 w-full mx-auto object-cover bg-[ghostwhite]"/>
-                  )}
-                  <div className="absolute inset-0 bg-black bg-opacity-20"></div>
-                  <div className="absolute top-4 right-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                      {service.available_accounts} Available
-                    </span>
-                    {hasExistingSubscription && (
-                      <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                        Active Subscription
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Service Info */}
-                <div className="p-4">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                    {service.name}
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              <ProductCard
+                key={service.name}
+                title={service.name}
+                price={0} // Services don't have prices in this implementation
+                imageUrl={service.image}
+                onAddToCart={() => handlePurchase(service.name)}
+              >
+                {/* Additional service info */}
+                <div className="p-4 space-y-3">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     {service.available_accounts} of {service.total_accounts} accounts available
                   </p>
 
                   {/* Current Subscription Info */}
                   {hasExistingSubscription && currentSubInfo && (
-                    <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
                       <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
                         Your Current Subscription:
                       </p>
@@ -311,32 +293,32 @@ const Shop: React.FC = () => {
 
                   {/* Duration Selection */}
                   {hasAvailableOptions && (
-                    <div className="mb-4">
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         {hasExistingSubscription ? 'Select Extension Duration:' : 'Select Duration:'}
                       </label>
-                      <select
+                      <Select
                         value={selectedDuration}
-                        onChange={(e) => setSelectedDuration(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedDuration(e.target.value)}
                       >
                         {availableDurations.map((duration) => (
                           <option key={duration.value} value={duration.value}>
                             {duration.label}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </div>
                   )}
 
                   {/* Purchase/Extension Button */}
-                  <button
+                  <Button
                     onClick={() => handlePurchase(service.name)}
                     disabled={purchasing || !hasAvailableOptions}
-                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    variant="primary"
+                    className="w-full"
                   >
                     {purchasing ? 'Processing...' : !hasAvailableOptions ? 'No Options Available' : hasExistingSubscription ? 'Extend Subscription' : 'Purchase Subscription'}
-                  </button>
+                  </Button>
 
                   {/* No Options Available Message */}
                   {!hasAvailableOptions && (
@@ -350,10 +332,10 @@ const Shop: React.FC = () => {
                     </div>
                   )}
                 </div>
-              </div>
+              </ProductCard>
             );
           })}
-        </div>
+        </ProductGrid>
 
         {/* Empty State */}
         {services.length === 0 && !loading && (

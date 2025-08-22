@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     
     # API settings
     API_V1_STR: str = "/api/v1"
-    API_BASE_URL: str = "https://www.api.webmixo.com"
+    API_BASE_URL: str = "https://api.valuesubs.com"
     LOG_LEVEL: str = "INFO"
     
     class Config:

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useTheme } from "../contexts/ThemeContext";
 import { getSubscriptions } from "../lib/apiClient";
+import { Button, Input } from "../components/ui";
+import { PlanCard } from "../features/subscriptions/components";
 
 interface Subscription {
   service_name: string;
@@ -183,13 +185,10 @@ export default function Subscriptions() {
                   {/* Credentials Section */}
                   {subscription.is_active ? (
                     <div className="space-y-4">
-                      <button
+                      <Button
                         onClick={() => toggleCredentials(subscription.account_id)}
-                        className={`w-full flex items-center justify-between px-4 py-2 rounded-lg font-medium transition-colors ${
-                          theme === 'dark' 
-                            ? 'bg-gray-700 hover:bg-gray-600 text-white' 
-                            : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
-                        }`}
+                        variant="secondary"
+                        className="w-full"
                       >
                         <span>View Credentials</span>
                         <svg
@@ -200,7 +199,7 @@ export default function Subscriptions() {
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
-                      </button>
+                      </Button>
 
                       {showCredentials[subscription.account_id] && (
                         <div className="space-y-3">
@@ -219,15 +218,16 @@ export default function Subscriptions() {
                                 }`}
                                 aria-label="Account ID"
                               />
-                              <button
+                              <Button
                                 onClick={() => copyToClipboard(subscription.account_id, 'Account ID')}
-                                className="shrink-0 px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white"
+                                variant="primary"
+                                size="sm"
                                 title="Copy Account ID"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                 </svg>
-                              </button>
+                              </Button>
                             </div>
                           </div>
 
@@ -264,19 +264,16 @@ export default function Subscriptions() {
                                   )}
                                 </button>
                               </div>
-                              <button
+                              <Button
                                 onClick={() => copyToClipboard(subscription.password, 'Password')}
-                                className={`px-3 py-2 rounded transition-colors ${
-                                  theme === 'dark' 
-                                    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                                }`}
+                                variant="primary"
+                                size="sm"
                                 title="Copy Password"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                 </svg>
-                              </button>
+                              </Button>
                             </div>
                           </div>
                         </div>

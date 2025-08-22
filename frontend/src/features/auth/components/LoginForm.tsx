@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { login } from '../../../lib/apiClient';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { Button, Input } from '../../../components/ui';
 
 interface LoginFormProps {
   onSwitchToSignup: () => void;
@@ -72,61 +73,24 @@ export default function LoginForm({ onSwitchToSignup, onSwitchToForgotPassword }
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Email Field */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Email</label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => handleInputChange('email', e.target.value)}
-              className={`w-full px-4 py-3 rounded-lg border transition-colors ${
-                errors.email 
-                  ? 'border-red-500 focus:border-red-500' 
-                  : theme === 'dark' 
-                    ? 'border-gray-600 focus:border-blue-500 bg-gray-700' 
-                    : 'border-gray-300 focus:border-blue-500 bg-white'
-              } ${theme === 'dark' ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'}`}
-              placeholder="Enter your email"
-            />
-            {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
-          </div>
+          <Input
+            type="email"
+            label="Email"
+            value={formData.email}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('email', e.target.value)}
+            placeholder="Enter your email"
+            error={errors.email}
+          />
 
           {/* Password Field */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Password</label>
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                value={formData.password}
-                onChange={(e) => handleInputChange('password', e.target.value)}
-                className={`w-full px-4 py-3 pr-10 rounded-lg border transition-colors ${
-                  errors.password 
-                    ? 'border-red-500 focus:border-red-500' 
-                    : theme === 'dark' 
-                      ? 'border-gray-600 focus:border-blue-500 bg-gray-700' 
-                      : 'border-gray-300 focus:border-blue-500 bg-white'
-                } ${theme === 'dark' ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'}`}
-                placeholder="Enter your password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                title={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                )}
-              </button>
-            </div>
-            {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
-          </div>
+          <Input
+            type={showPassword ? "text" : "password"}
+            label="Password"
+            value={formData.password}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('password', e.target.value)}
+            placeholder="Enter your password"
+            error={errors.password}
+          />
 
           {/* Forgot Password Link */}
           <div className="flex justify-end">
@@ -145,17 +109,13 @@ export default function LoginForm({ onSwitchToSignup, onSwitchToForgotPassword }
             </div>
           )}
 
-          <button
+          <Button
             type="submit"
             disabled={isLoading}
-            className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
-              isLoading
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
-            }`}
+            className="w-full"
           >
             {isLoading ? 'Signing In...' : 'Sign In'}
-          </button>
+          </Button>
         </form>
 
         <div className="mt-6 text-center">

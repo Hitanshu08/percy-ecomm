@@ -3,6 +3,7 @@ import { signup, login } from '../../../lib/apiClient';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useTheme } from '../../../contexts/ThemeContext';
 import TermsAndConditions from '../../../components/TermsAndConditions';
+import { Button, Input, Checkbox } from '../../../components/ui';
 
 interface SignupFormProps {
   onSuccess: () => void;
@@ -72,7 +73,7 @@ export default function SignupForm({ onSuccess, onSwitchToLogin }: SignupFormPro
     setIsLoading(true);
     try {
       // First, create the account
-      await signup(formData.username, formData.email, formData.password, formData.userId);
+      await signup(formData.username, formData.email, formData.password);
       
       // Then, automatically log in the user
       const loginData = await login(formData.email, formData.password);
@@ -119,83 +120,51 @@ export default function SignupForm({ onSuccess, onSwitchToLogin }: SignupFormPro
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Email Field */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Email</label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => handleInputChange('email', e.target.value)}
-              className={`w-full px-4 py-3 rounded-lg border transition-colors ${
-                errors.email 
-                  ? 'border-red-500 focus:border-red-500' 
-                  : theme === 'dark' 
-                    ? 'border-gray-600 focus:border-blue-500 bg-gray-700' 
-                    : 'border-gray-300 focus:border-blue-500 bg-white'
-              } ${theme === 'dark' ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'}`}
-              placeholder="Enter your email"
-            />
-            {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
-          </div>
+          <Input
+            type="email"
+            label="Email"
+            value={formData.email}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('email', e.target.value)}
+            placeholder="Enter your email"
+            error={errors.email}
+          />
 
           {/* Username Field */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Username</label>
-            <input
-              type="text"
-              value={formData.username}
-              onChange={(e) => handleInputChange('username', e.target.value)}
-              className={`w-full px-4 py-3 rounded-lg border transition-colors ${
-                errors.username 
-                  ? 'border-red-500 focus:border-red-500' 
-                  : theme === 'dark' 
-                    ? 'border-gray-600 focus:border-blue-500 bg-gray-700' 
-                    : 'border-gray-300 focus:border-blue-500 bg-white'
-              } ${theme === 'dark' ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'}`}
-              placeholder="Choose a username"
-            />
-            {errors.username && <p className="text-red-500 text-sm mt-1">{errors.username}</p>}
-          </div>
+          <Input
+            type="text"
+            label="Username"
+            value={formData.username}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('username', e.target.value)}
+            placeholder="Choose a username"
+            error={errors.username}
+          />
 
           {/* User ID Field */}
-          <div>
-            <label className="block text-sm font-medium mb-2">User ID</label>
-            <input
-              type="text"
-              value={formData.userId}
-              onChange={(e) => handleInputChange('userId', e.target.value)}
-              className={`w-full px-4 py-3 rounded-lg border transition-colors ${
-                errors.userId 
-                  ? 'border-red-500 focus:border-red-500' 
-                  : theme === 'dark' 
-                    ? 'border-gray-600 focus:border-blue-500 bg-gray-700' 
-                    : 'border-gray-300 focus:border-blue-500 bg-white'
-              } ${theme === 'dark' ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'}`}
-              placeholder="Enter user ID"
-            />
-            {errors.userId && <p className="text-red-500 text-sm mt-1">{errors.userId}</p>}
-            {suggestions.length > 0 && (
-              <p className="text-blue-500 text-sm mt-1">
-                Suggested IDs: {suggestions.join(', ')}
-              </p>
-            )}
-          </div>
+          <Input
+            type="text"
+            label="User ID"
+            value={formData.userId}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('userId', e.target.value)}
+            placeholder="Enter user ID"
+            error={errors.userId}
+          />
+          {suggestions.length > 0 && (
+            <p className="text-blue-500 text-sm mt-1">
+              Suggested IDs: {suggestions.join(', ')}
+            </p>
+          )}
 
           {/* Password Field */}
           <div>
-            <label className="block text-sm font-medium mb-2">Password</label>
+
             <div className="relative">
-              <input
+              <Input
                 type={showPassword ? 'text' : 'password'}
+                label="Password"
                 value={formData.password}
-                onChange={(e) => handleInputChange('password', e.target.value)}
-                className={`w-full px-4 py-3 pr-10 rounded-lg border transition-colors ${
-                  errors.password 
-                    ? 'border-red-500 focus:border-red-500' 
-                    : theme === 'dark' 
-                      ? 'border-gray-600 focus:border-blue-500 bg-gray-700' 
-                      : 'border-gray-300 focus:border-blue-500 bg-white'
-                } ${theme === 'dark' ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'}`}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('password', e.target.value)}
                 placeholder="Create a password"
+                error={errors.password}
               />
               <button
                 type="button"
@@ -257,18 +226,12 @@ export default function SignupForm({ onSuccess, onSwitchToLogin }: SignupFormPro
           </div>
 
           {/* Terms and Conditions Checkbox */}
-          <div className="flex items-start space-x-3">
-            <input
-              type="checkbox"
-              id="acceptTerms"
-              checked={formData.acceptTerms}
-              onChange={(e) => handleInputChange('acceptTerms', e.target.checked)}
-              className={`mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${
-                theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'
-              }`}
-            />
-            <div className="flex-1">
-              <label htmlFor="acceptTerms" className="text-sm">
+          <Checkbox
+            id="acceptTerms"
+            checked={formData.acceptTerms}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('acceptTerms', e.target.checked)}
+            label={
+              <span>
                 I agree to the{' '}
                 <button
                   type="button"
@@ -277,10 +240,10 @@ export default function SignupForm({ onSuccess, onSwitchToLogin }: SignupFormPro
                 >
                   Terms and Conditions
                 </button>
-              </label>
-              {errors.acceptTerms && <p className="text-red-500 text-sm mt-1">{errors.acceptTerms}</p>}
-            </div>
-          </div>
+              </span>
+            }
+          />
+          {errors.acceptTerms && <p className="text-red-500 text-sm mt-1">{errors.acceptTerms}</p>}
 
           {errors.general && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
@@ -288,17 +251,13 @@ export default function SignupForm({ onSuccess, onSwitchToLogin }: SignupFormPro
             </div>
           )}
 
-          <button
+          <Button
             type="submit"
             disabled={isLoading}
-            className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
-              isLoading
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
-            }`}
+            className="w-full"
           >
             {isLoading ? 'Creating Account...' : 'Create Account'}
-          </button>
+          </Button>
         </form>
 
         <div className="mt-6 text-center">

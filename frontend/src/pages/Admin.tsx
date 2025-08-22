@@ -18,6 +18,7 @@ import {
   updateUserSubscriptionEndDate,
   removeUserSubscription,
 } from '../lib/apiClient';
+import { Button, Input, Checkbox } from '../components/ui';
 import { useApi } from '../lib/useApi';
 import { config } from '../config/index';
 
@@ -423,19 +424,17 @@ export default function Admin() {
               </h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <input
+                <Input
                   type="text"
                   placeholder="Service Name"
                   value={newService.name}
-                  onChange={(e) => setNewService({ ...newService, name: e.target.value })}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewService({ ...newService, name: e.target.value })}
                 />
-                <input
+                <Input
                   type="text"
                   placeholder="Image URL"
                   value={newService.image}
-                  onChange={(e) => setNewService({ ...newService, image: e.target.value })}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewService({ ...newService, image: e.target.value })}
                 />
               </div>
 
@@ -536,13 +535,11 @@ export default function Admin() {
                         className="w-full px-3 py-2 border border-gray-300  dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white dark:[color-scheme:dark]"
                       />
                       <div className="flex items-center">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={account.is_active}
-                          onChange={(e) => updateAccountField(index, 'is_active', e.target.checked)}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAccountField(index, 'is_active', e.target.checked)}
+                          label="Active"
                         />
-                        <label className="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
                       </div>
                     </div>
                   </div>
@@ -550,14 +547,14 @@ export default function Admin() {
               </div>
 
               <div className="flex space-x-3">
-                <button
+                <Button
                   onClick={editingService ? () => handleEditService(editingService) : handleCreateService}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  variant="primary"
                 >
                   {editingService ? 'Update Service' : 'Create Service'}
-                </button>
+                </Button>
                 {editingService && (
-                  <button
+                  <Button
                     onClick={() => {
                       setEditingService(null);
                       setShowEditForm(false);
@@ -567,10 +564,10 @@ export default function Admin() {
                         accounts: [{ id: '', password: '', end_date: '', is_active: true }]
                       });
                     }}
-                    className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                    variant="secondary"
                   >
                     Cancel Edit
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
@@ -616,13 +613,15 @@ export default function Admin() {
                         ))}
                       </div>
                       <div className="flex space-x-2">
-                        <button
+                        <Button
                           onClick={() => startEditService(service.name)}
-                          className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+                          variant="primary"
+                          size="sm"
+                          className="flex-1"
                         >
                           Edit
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           onClick={async () => {
                             setEditingCreditsFor(service.name);
                             try {
@@ -637,16 +636,20 @@ export default function Admin() {
                               setCreditsForm({});
                             }
                           }}
-                          className="flex-1 px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
+                          variant="secondary"
+                          size="sm"
+                          className="flex-1"
                         >
                           Edit Credits
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           onClick={() => handleDeleteService(service.name)}
-                          className="flex-1 px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+                          variant="secondary"
+                          size="sm"
+                          className="flex-1"
                         >
                           Delete
-                        </button>
+                        </Button>
                       </div>
                       {editingCreditsFor === service.name && (
                         <div className="mt-4 p-3 border border-gray-200 dark:border-gray-700 rounded-md">
@@ -771,13 +774,14 @@ export default function Admin() {
                     </p>
                   </div>
                 )} */}
-                <button
+                <Button
                   onClick={handleAddSubscription}
                   disabled={addingSubscription}
-                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  variant="primary"
+                  className="mt-4"
                 >
                   {addingSubscription ? 'Adding...' : 'Add Subscription'}
-                </button>
+                </Button>
               </div>
 
               {/* Users List */}
@@ -987,18 +991,20 @@ export default function Admin() {
                 />
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
-                <button
+                <Button
                   onClick={handleAddCredits}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                  variant="primary"
+                  className="bg-green-600 hover:bg-green-700"
                 >
                   Add Credits
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleRemoveCredits}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                  variant="primary"
+                  className="bg-red-600 hover:bg-red-700"
                 >
                   Remove Credits
-                </button>
+                </Button>
               </div>
             </div>
 

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { changePassword, getMe } from "../lib/apiClient";
+import { Button, Input } from "../components/ui";
+import { Modal } from "../components/feedback";
 
 interface UserData {
   username: string;
@@ -38,7 +40,7 @@ export default function UserPage() {
   const fetchUserData = async () => {
     try {
       const data = await getMe();
-      setUserData(data);
+      setUserData(data as UserData);
     } catch (error) {
       console.error('Error fetching user data:', error);
     } finally {
@@ -237,15 +239,16 @@ export default function UserPage() {
                 </h3>
               </div>
               <div className="px-6 py-4">
-                <button
+                <Button
                   onClick={() => setShowPasswordModal(true)}
-                  className="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  variant="primary"
+                  className="w-full"
                 >
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                   </svg>
                   Change Password
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -271,88 +274,49 @@ export default function UserPage() {
                 
                 <form onSubmit={handlePasswordChange} className="px-6 py-4">
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Current Password
-                      </label>
-                      <input
-                        type="password"
-                        value={passwordData.oldPassword}
-                        onChange={(e) => handleInputChange('oldPassword', e.target.value)}
-                        className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                          passwordErrors.oldPassword 
-                            ? 'border-red-300 dark:border-red-600' 
-                            : 'border-gray-300 dark:border-gray-600'
-                        } dark:bg-gray-700 dark:text-white`}
-                        placeholder="Enter your current password"
-                      />
-                      {passwordErrors.oldPassword && (
-                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                          {passwordErrors.oldPassword}
-                        </p>
-                      )}
-                    </div>
+                    <Input
+                      type="password"
+                      label="Current Password"
+                      value={passwordData.oldPassword}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('oldPassword', e.target.value)}
+                      placeholder="Enter your current password"
+                      error={passwordErrors.oldPassword}
+                    />
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        New Password
-                      </label>
-                      <input
-                        type="password"
-                        value={passwordData.newPassword}
-                        onChange={(e) => handleInputChange('newPassword', e.target.value)}
-                        className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                          passwordErrors.newPassword 
-                            ? 'border-red-300 dark:border-red-600' 
-                            : 'border-gray-300 dark:border-gray-600'
-                        } dark:bg-gray-700 dark:text-white`}
-                        placeholder="Enter your new password"
-                      />
-                      {passwordErrors.newPassword && (
-                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                          {passwordErrors.newPassword}
-                        </p>
-                      )}
-                    </div>
+                    <Input
+                      type="password"
+                      label="New Password"
+                      value={passwordData.newPassword}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('newPassword', e.target.value)}
+                      placeholder="Enter your new password"
+                      error={passwordErrors.newPassword}
+                    />
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Confirm New Password
-                      </label>
-                      <input
-                        type="password"
-                        value={passwordData.confirmPassword}
-                        onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                        className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                          passwordErrors.confirmPassword 
-                            ? 'border-red-300 dark:border-red-600' 
-                            : 'border-gray-300 dark:border-gray-600'
-                        } dark:bg-gray-700 dark:text-white`}
-                        placeholder="Confirm your new password"
-                      />
-                      {passwordErrors.confirmPassword && (
-                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                          {passwordErrors.confirmPassword}
-                        </p>
-                      )}
-                    </div>
+                    <Input
+                      type="password"
+                      label="Confirm New Password"
+                      value={passwordData.confirmPassword}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('confirmPassword', e.target.value)}
+                      placeholder="Confirm your new password"
+                      error={passwordErrors.confirmPassword}
+                    />
                   </div>
 
                   <div className="mt-6 flex justify-end space-x-3">
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setShowPasswordModal(false)}
-                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      variant="secondary"
                     >
                       Cancel
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="submit"
                       disabled={isChangingPassword}
-                      className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                      variant="primary"
                     >
                       {isChangingPassword ? 'Updating...' : 'Update Password'}
-                    </button>
+                    </Button>
                   </div>
                 </form>
               </div>
