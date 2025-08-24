@@ -8,7 +8,6 @@ import { Modal } from "../components/feedback";
 interface UserData {
   username: string;
   email: string;
-  user_id: string;
   role: string;
   credits: number;
   btc_address: string;
@@ -117,58 +116,20 @@ export default function UserPage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Profile Settings
-          </h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Manage your account information and security settings
+          <h1 className="text-3xl font-bold mb-2">User Profile</h1>
+          <p className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+            Manage your account settings and preferences
           </p>
         </div>
 
         {/* Message Display */}
         {message && (
-          <div className={`mb-6 p-4 rounded-md ${
+          <div className={`mb-6 p-4 rounded-lg ${
             message.type === 'success' 
-              ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' 
-              : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+              ? 'bg-green-100 border border-green-400 text-green-700' 
+              : 'bg-red-100 border border-red-400 text-red-700'
           }`}>
-            <div className="flex">
-              <div className="flex-shrink-0">
-                {message.type === 'success' ? (
-                  <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                ) : (
-                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                )}
-              </div>
-              <div className="ml-3">
-                <p className={`text-sm ${
-                  message.type === 'success' 
-                    ? 'text-green-800 dark:text-green-200' 
-                    : 'text-red-800 dark:text-red-200'
-                }`}>
-                  {message.text}
-                </p>
-              </div>
-              <div className="ml-auto pl-3">
-                <button
-                  onClick={() => setMessage(null)}
-                  className={`inline-flex ${
-                    message.type === 'success' 
-                      ? 'text-green-400 hover:text-green-500' 
-                      : 'text-red-400 hover:text-red-500'
-                  }`}
-                >
-                  <span className="sr-only">Dismiss</span>
-                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </div>
-            </div>
+            {message.text}
           </div>
         )}
 
@@ -204,7 +165,7 @@ export default function UserPage() {
                       User ID
                     </label>
                     <p className="mt-1 text-sm text-gray-900 dark:text-white">
-                      {userData?.user_id || user?.user_id}
+                      {userData?.username || user?.user_id}
                     </p>
                   </div>
                   <div>
@@ -281,6 +242,7 @@ export default function UserPage() {
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('oldPassword', e.target.value)}
                       placeholder="Enter your current password"
                       error={passwordErrors.oldPassword}
+                      showPasswordToggle={true}
                     />
 
                     <Input
@@ -290,6 +252,7 @@ export default function UserPage() {
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('newPassword', e.target.value)}
                       placeholder="Enter your new password"
                       error={passwordErrors.newPassword}
+                      showPasswordToggle={true}
                     />
 
                     <Input
@@ -299,6 +262,7 @@ export default function UserPage() {
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('confirmPassword', e.target.value)}
                       placeholder="Confirm your new password"
                       error={passwordErrors.confirmPassword}
+                      showPasswordToggle={true}
                     />
                   </div>
 

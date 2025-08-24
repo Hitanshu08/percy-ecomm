@@ -1,4 +1,7 @@
 // Auth utility functions for token management
+import { config } from '../config/index';
+
+const API_URL = config.getApiUrl();
 
 export const refreshAccessToken = async (): Promise<string | null> => {
   try {
@@ -7,7 +10,7 @@ export const refreshAccessToken = async (): Promise<string | null> => {
       return null;
     }
 
-    const response = await fetch('https://api.valuesubs.com/refresh', {
+    const response = await fetch(`${API_URL}/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

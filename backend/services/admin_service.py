@@ -108,7 +108,9 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
                 # Identify if any existing subscription belongs to this same service (any account in svc_for_account)
                 service_account_ids = set(acc.get("id") for acc in (svc_for_account.accounts or []))
                 for sub in (user.services or []):
-                    if sub.get("service_id") in service_account_ids:
+                    sid = sub.get("service_id")
+                    aid = sub.get("account_id")
+                    if sid in service_account_ids or aid in service_account_ids:
                         existing_subscription = sub
                         break
                 if existing_subscription:
@@ -317,7 +319,8 @@ def remove_user_subscription(request: AdminRemoveSubscription, current_user: Use
             before = len(user.services or [])
             if not user.services or not isinstance(user.services, list):
                 raise HTTPException(status_code=400, detail="User has no subscriptions")
-            user.services = [s for s in user.services if s.get("service_id") != request.service_id]
+            # Match on either service_id or account_id to support legacy/new records
+            user.services = [s for s in user.services if (s.get("service_id") != request.service_id and s.get("account_id") != request.service_id)]
             flag_modified(user, "services")
             after = len(user.services)
             if before == after:
@@ -342,7 +345,8 @@ def update_user_subscription_end_date(request: AdminUpdateSubscriptionEndDate, c
                 raise HTTPException(status_code=400, detail="User has no subscriptions")
             updated = False
             for sub in user.services:
-                if sub.get("service_id") == request.service_id:
+                # Match on either service_id or account_id
+                if sub.get("service_id") == request.service_id or sub.get("account_id") == request.service_id:
                     sub["end_date"] = request.end_date
                     updated = True
                     break
@@ -561,7 +565,7 @@ def get_user_subscriptions_admin(username: str, current_user: User):
                 matched = None
                 for svc in services.values():
                     for acc in (svc.accounts or []):
-                        if acc.get("id") == sub.get("service_id"):
+                        if acc.get("id") == sub.get("service_id") or acc.get("id") == sub.get("account_id"):
                             matched = (svc, acc)
                             break
                     if matched:

@@ -85,7 +85,7 @@ You can test CORS configuration using:
 
 ```bash
 # Test from browser console
-fetch('https://api.valuesubs.com/health', {
+fetch('https://devmens.com/health', {
   method: 'GET',
   headers: {
     'Content-Type': 'application/json',

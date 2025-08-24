@@ -15,7 +15,7 @@ export default function Modal({ open, onClose, title, children }: Props) {
       <div className="relative bg-white rounded-lg shadow-lg w-full max-w-lg p-4">
         <div className="flex items-center justify-between mb-3">
           {title ? <h3 className="text-lg font-medium">{title}</h3> : <span />}
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">✕</button>
         </div>
         <div>{children}</div>
       </div>

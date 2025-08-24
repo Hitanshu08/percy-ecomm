@@ -28,6 +28,7 @@ share/python-wheels/
 *.egg
 MANIFEST
 **/*.zip
+.DS_Store
 **/.DS_Store
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -80,6 +81,9 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+*.ipynb
+# Keep database setup notebook for development
+!database_setup.ipynb
 
 # IPython
 profile_default/

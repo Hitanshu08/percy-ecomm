@@ -8,7 +8,7 @@ interface Subscription {
   service_name: string;
   service_image: string;
   account_id: string;
-  password: string;
+  account_password: string;
   end_date: string;
   is_active: boolean;
 }
@@ -238,7 +238,7 @@ export default function Subscriptions() {
                               <div className="relative flex-1">
                                 <input
                                   type={showPasswords[subscription.account_id] ? "text" : "password"}
-                                  value={subscription.password}
+                                  value={subscription.account_password}
                                   readOnly
                                   className={`w-full min-w-0 px-3 py-2 pr-10 rounded border truncate ${
                                     theme === "dark"
@@ -249,7 +249,7 @@ export default function Subscriptions() {
 
                                 <button
                                   onClick={() => togglePassword(subscription.account_id)}
-                                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
                                   title={showPasswords[subscription.account_id] ? "Hide password" : "Show password"}
                                 >
                                   {showPasswords[subscription.account_id] ? (

@@ -1,37 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApi } from '../lib/useApi';
-import { getValidToken } from '../lib/auth';
 import { config } from '../config/index';
 import { Button, Select } from '../components/ui';
-import { ProductCard, ProductGrid } from '../features/shop/components';
+import { Spinner } from '../components/feedback';
 
 interface Service {
   name: string;
   image: string;
   available_accounts: number;
   total_accounts: number;
-  available: Array<{
-    id: string;
-    days_until_expiry: number;
-    end_date: string;
-  }>;
+  max_days_until_expiry: number;
+  max_end_date: string;
+  credits?: Record<string, number>;
 }
 
-interface CurrentSubscription {
+interface UserSubscription {
   service_name: string;
   service_image: string;
   account_id: string;
-  password: string;
+  account_username: string;
+  account_password: string;
   end_date: string;
   is_active: boolean;
+  duration: string;
+  total_duration: number;
+  created_date: string;
+  last_extension: string;
+  extension_duration: string;
 }
 
 const Shop: React.FC = () => {
   const { user } = useAuth();
   const { callApi } = useApi();
   const [services, setServices] = useState<Service[]>([]);
-  const [currentSubscriptions, setCurrentSubscriptions] = useState<CurrentSubscription[]>([]);
+  const [userSubscriptions, setUserSubscriptions] = useState<UserSubscription[]>([]);
   const [selectedDuration, setSelectedDuration] = useState('7days');
   const [purchasing, setPurchasing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -43,28 +46,23 @@ const Shop: React.FC = () => {
 
   const fetchData = async () => {
     try {
+      setLoading(true);
       const [servicesData, subscriptionsData] = await Promise.all([
         callApi<{ services: Service[] }>(`${config.getApiUrl()}/services`),
-        callApi<{ subscriptions: CurrentSubscription[] }>(`${config.getApiUrl()}/subscriptions`)
+        callApi<{ subscriptions: UserSubscription[] }>(`${config.getApiUrl()}/subscriptions`)
       ]);
       
       setServices(servicesData.services);
-      setCurrentSubscriptions(subscriptionsData.subscriptions);
+      setUserSubscriptions(subscriptionsData.subscriptions);
     } catch (error) {
       console.error('Error fetching data:', error);
+      setMessage({
+        type: 'error',
+        text: 'Failed to load data. Please try again.'
+      });
     } finally {
       setLoading(false);
     }
-  };
-
-  // Check if user has a subscription for a service
-  const hasSubscription = (serviceName: string) => {
-    return currentSubscriptions.some(sub => sub.service_name === serviceName);
-  };
-
-  // Get current subscription info for a service
-  const getCurrentSubscriptionInfo = (serviceName: string) => {
-    return currentSubscriptions.find(sub => sub.service_name === serviceName);
   };
 
   // Helper function to parse dd/mm/yyyy dates
@@ -76,72 +74,73 @@ const Shop: React.FC = () => {
     return new Date(dateString);
   };
 
+  // Check if user has a subscription for a service
+  const hasSubscription = (serviceName: string) => {
+    return userSubscriptions.some(sub => sub.service_name === serviceName);
+  };
+
+  // Get current subscription info for a service
+  const getCurrentSubscriptionInfo = (serviceName: string) => {
+    return userSubscriptions.find(sub => sub.service_name === serviceName);
+  };
+
   // Get available duration options for a service based on account expiry dates and existing subscription
   const getAvailableDurations = (service: Service) => {
-    const currentSub = getCurrentSubscriptionInfo(service.name);
-    
-    if (!currentSub) {
-      // New subscription - check account expiry dates
-      const today = new Date();
-      let maxAvailableDays = 0;
-      
-      service.available.forEach(account => {
-        const accountEndDate = parseDate(account.end_date);
-        const daysUntilExpiry = Math.floor((accountEndDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        if (daysUntilExpiry > maxAvailableDays) {
-          maxAvailableDays = daysUntilExpiry;
-        }
-      });
-      
-      // Define all possible duration options with their days
-      const allDurations = [
-        { value: '7days', label: '7 Days', days: 7 },
-        { value: '1month', label: '1 Month', days: 30 },
-        { value: '3months', label: '3 Months', days: 90 },
-        { value: '6months', label: '6 Months', days: 180 },
-        { value: '1year', label: '1 Year', days: 365 }
-      ];
-      
-      return allDurations.filter(duration => duration.days <= maxAvailableDays);
-    }
-    
-    // Existing subscription - check extension possibilities
-    const currentEndDate = parseDate(currentSub.end_date);
-    const today = new Date();
-    
-    // Find the latest possible end date from available accounts
-    let maxPossibleEndDate = currentEndDate;
-    
-    service.available.forEach(account => {
-      const accountEndDate = parseDate(account.end_date);
-      if (accountEndDate > maxPossibleEndDate) {
-        maxPossibleEndDate = accountEndDate;
-      }
-    });
-    
-    const maxAdditionalDays = Math.floor((maxPossibleEndDate.getTime() - currentEndDate.getTime()) / (1000 * 60 * 60 * 24));
-    
-    // Define all possible duration options with their days
-    const allDurations = [
-      { value: '7days', label: '7 Days', days: 7 },
-      { value: '1month', label: '1 Month', days: 30 },
-      { value: '3months', label: '3 Months', days: 90 },
-      { value: '6months', label: '6 Months', days: 180 },
-      { value: '1year', label: '1 Year', days: 365 }
-    ];
-    
-    if (maxAdditionalDays <= 0) {
-      return []; // No extension possible
+    if (service.available_accounts === 0) {
+      return [];
     }
 
-    // Filter duration options that are within the possible extension range
-    return allDurations
-      .filter(duration => duration.days <= maxAdditionalDays)
-      .map(duration => ({
-        ...duration,
-        label: `${duration.label} (Extension)`,
-        extension: true
-      }));
+    const currentSub = getCurrentSubscriptionInfo(service.name);
+    const subscriptionDurations = config.getSubscriptionDurations();
+    
+    if (currentSub) {
+      // Extension logic - user can only extend existing subscription
+      const currentEndDate = parseDate(currentSub.end_date);
+      const accountEndDate = parseDate(service.max_end_date);
+      const today = new Date();
+      
+      // Calculate maximum extension days possible
+      const maxExtensionDays = Math.floor((accountEndDate.getTime() - currentEndDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (maxExtensionDays <= 0) {
+        return []; // No extension possible
+      }
+      
+      // Filter durations that are within the possible extension range
+      const availableDurations = Object.entries(subscriptionDurations)
+        .filter(([key, duration]) => {
+          return duration.days <= maxExtensionDays;
+        })
+        .map(([key, duration]) => ({
+          value: key,
+          label: `${duration.name} (Extension)`,
+          days: duration.days,
+          credits_cost: service.credits?.[key] ?? duration.credits_cost,
+          extension: true
+        }))
+        .sort((a, b) => a.days - b.days);
+      
+      return availableDurations;
+    } else {
+      // New subscription logic
+      const maxAvailableDays = service.max_days_until_expiry;
+      
+      // Filter durations that are within the available time range
+      const availableDurations = Object.entries(subscriptionDurations)
+        .filter(([key, duration]) => {
+          return duration.days <= maxAvailableDays;
+        })
+        .map(([key, duration]) => ({
+          value: key,
+          label: duration.name,
+          days: duration.days,
+          credits_cost: service.credits?.[key] ?? duration.credits_cost,
+          extension: false
+        }))
+        .sort((a, b) => a.days - b.days);
+      
+      return availableDurations;
+    }
   };
 
   const handlePurchase = async (serviceName: string) => {
@@ -163,22 +162,27 @@ const Shop: React.FC = () => {
         })
       });
 
-      const messageText = result.extension 
-        ? `${result.message} - New end date: ${result.new_end_date} - Credits: ${result.cost} deducted, ${result.credits} remaining`
-        : `${result.message} - Credits: ${result.cost} deducted, ${result.credits} remaining`;
+      let messageText = result.message;
+      
+      if (result.extension) {
+        messageText += ` - New end date: ${result.new_end_date} - ${result.cost} credits deducted. Remaining: ${result.credits}`;
+      } else {
+        messageText += ` - Ends on: ${result.new_end_date} - ${result.cost} credits deducted. Remaining: ${result.credits}`;
+      }
 
       setMessage({
         type: 'success',
         text: messageText
       });
-      // Refresh subscriptions
+      
+      // Refresh data to update availability
       fetchData();
       setSelectedDuration("7days");
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error purchasing subscription:', error);
       setMessage({
         type: 'error',
-        text: 'Purchase failed. Please try again.'
+        text: error.response?.data?.detail || 'Purchase failed. Please try again.'
       });
     } finally {
       setPurchasing(false);
@@ -187,9 +191,7 @@ const Shop: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
+      <Spinner />
     );
   }
 
@@ -202,7 +204,7 @@ const Shop: React.FC = () => {
             Subscription Shop
           </h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Choose from our premium services and select your preferred duration
+            Choose from our premium services and get assigned to specific accounts
           </p>
         </div>
 
@@ -254,7 +256,7 @@ const Shop: React.FC = () => {
         )}
 
         {/* Services Grid */}
-        <ProductGrid>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {services.map((service) => {
             const availableDurations = getAvailableDurations(service);
             const hasAvailableOptions = availableDurations.length > 0;
@@ -262,15 +264,14 @@ const Shop: React.FC = () => {
             const currentSubInfo = getCurrentSubscriptionInfo(service.name);
             
             return (
-              <ProductCard
-                key={service.name}
-                title={service.name}
-                price={0} // Services don't have prices in this implementation
-                imageUrl={service.image}
-                onAddToCart={() => handlePurchase(service.name)}
-              >
-                {/* Additional service info */}
+              <div key={service.name} className="border rounded-md overflow-hidden bg-white dark:bg-gray-800">
+                {/* Service Image */}
+                <img src={service.image} alt={service.name} className="h-40 w-full object-cover bg-[ghostwhite]" />
+                
+                {/* Service Info */}
                 <div className="p-4 space-y-3">
+                  <div className="text-lg font-medium text-gray-900 dark:text-white">{service.name}</div>
+                  
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     {service.available_accounts} of {service.total_accounts} accounts available
                   </p>
@@ -279,13 +280,35 @@ const Shop: React.FC = () => {
                   {hasExistingSubscription && currentSubInfo && (
                     <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
                       <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
-                        Your Current Subscription:
+                        Your Current Assignment:
                       </p>
-                      <div className="text-xs text-blue-700 dark:text-blue-300">
-                        <div>Account ID: {currentSubInfo.account_id}</div>
-                        <div>Expires: {currentSubInfo.end_date}</div>
+                      <div className="text-xs text-blue-700 dark:text-blue-400 space-y-1">
+                        <div><strong>Account ID:</strong> {currentSubInfo.account_id}</div>
+                        <div><strong>Username:</strong> {currentSubInfo.account_username}</div>
+                        <div><strong>Password:</strong> {currentSubInfo.account_password}</div>
+                        <div><strong>Expires:</strong> {currentSubInfo.end_date}</div>
+                        <div><strong>Total Duration:</strong> {currentSubInfo.total_duration} days</div>
+                        {currentSubInfo.last_extension && (
+                          <div><strong>Last Extended:</strong> {currentSubInfo.last_extension}</div>
+                        )}
                         <div className="mt-2 text-blue-600 dark:text-blue-400">
                           <strong>Extension will add to your current subscription</strong>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Account Availability Info */}
+                  {!hasExistingSubscription && service.available_accounts > 0 && (
+                    <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-md">
+                      <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
+                        Account Availability:
+                      </p>
+                      <div className="text-xs text-green-700 dark:text-green-400">
+                        <div>Max available time: {service.max_days_until_expiry} days</div>
+                        <div>Account expires: {service.max_end_date}</div>
+                        <div className="mt-2 text-green-600 dark:text-green-400">
+                          <strong>You will be assigned to a specific account</strong>
                         </div>
                       </div>
                     </div>
@@ -303,7 +326,7 @@ const Shop: React.FC = () => {
                       >
                         {availableDurations.map((duration) => (
                           <option key={duration.value} value={duration.value}>
-                            {duration.label}
+                            {duration.label} - {duration.credits_cost} credits
                           </option>
                         ))}
                       </Select>
@@ -317,7 +340,7 @@ const Shop: React.FC = () => {
                     variant="primary"
                     className="w-full"
                   >
-                    {purchasing ? 'Processing...' : !hasAvailableOptions ? 'No Options Available' : hasExistingSubscription ? 'Extend Subscription' : 'Purchase Subscription'}
+                    {purchasing ? 'Processing...' : !hasAvailableOptions ? 'No Options Available' : hasExistingSubscription ? 'Extend Subscription' : 'Get Account Assignment'}
                   </Button>
 
                   {/* No Options Available Message */}
@@ -332,16 +355,16 @@ const Shop: React.FC = () => {
                     </div>
                   )}
                 </div>
-              </ProductCard>
+              </div>
             );
           })}
-        </ProductGrid>
+        </div>
 
         {/* Empty State */}
         {services.length === 0 && !loading && (
           <div className="text-center py-12">
             <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-7m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
             </svg>
             <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
               No services available

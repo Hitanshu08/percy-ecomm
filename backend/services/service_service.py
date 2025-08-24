@@ -1,14 +1,17 @@
 from schemas.user_schema import User, SubscriptionPurchase
+from config import config
 from db.session import SessionLocal
 from db.models.user import User as UserModel
 from db.models.service import Service as ServiceModel
 from db.models.refresh_token import RefreshToken
 from core.security import create_access_token
 from core.config import settings
-from config import config
+import json
+import os
 from fastapi import HTTPException
 from datetime import timedelta, datetime
 import logging
+from sqlalchemy.orm.attributes import flag_modified
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +28,7 @@ def format_date(date_obj: datetime) -> str:
     return date_obj.strftime("%d/%m/%Y")
 
 def get_services():
-    """Get all available services with detailed account information"""
+    """Get all available services with aggregated account information"""
     try:
         db = SessionLocal()
         services = []
@@ -33,11 +36,17 @@ def get_services():
         try:
             for service in db.query(ServiceModel).all():
                 available_accounts = []
+                max_days_until_expiry = 0
+                max_end_date = ""
                 
                 for account in (service.accounts or []):
                     if account["is_active"]:
                         end_date = parse_date(account["end_date"])
                         days_until_expiry = (end_date - today).days
+                        
+                        if days_until_expiry > max_days_until_expiry:
+                            max_days_until_expiry = days_until_expiry
+                            max_end_date = account["end_date"]
                         
                         available_accounts.append({
                             "id": account["id"],
@@ -50,7 +59,9 @@ def get_services():
                     "image": service.image,
                     "available_accounts": len(available_accounts),
                     "total_accounts": len(service.accounts or []),
-                    "available": available_accounts
+                    "max_days_until_expiry": max_days_until_expiry,
+                    "max_end_date": max_end_date,
+                    "credits": service.credits or {}
                 })
             return {"services": services}
         finally:
@@ -60,186 +71,177 @@ def get_services():
         raise HTTPException(status_code=500, detail="Internal server error")
 
 def purchase_subscription(request: SubscriptionPurchase, current_user: User):
-    """Purchase a subscription or extend existing one"""
+    """Purchase a subscription - assign user to a specific account"""
     try:
+        # Get user from database
         db = SessionLocal()
-        user = None
         try:
             user = db.query(UserModel).filter(UserModel.username == current_user.username).first()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
         finally:
             db.close()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
         
-        # Get subscription cost from config
+        # Load durations config
         subscription_durations = config.get_subscription_durations()
         duration_config = subscription_durations.get(request.duration)
-        
         if not duration_config:
             raise HTTPException(status_code=400, detail="Invalid subscription duration")
+        requested_days = int(duration_config.get("days", 0))
         
-        cost = duration_config["credits_cost"]
+        # Get service data
+        db = SessionLocal()
+        try:
+            service_data = db.query(ServiceModel).filter(ServiceModel.name == request.service_name).first()
+            if not service_data:
+                raise HTTPException(status_code=404, detail="Service not found")
+            # Determine cost: prefer per-service override, fallback to global duration cost
+            service_credits_map = service_data.credits or {}
+            try:
+                cost_to_deduct = int(service_credits_map.get(request.duration, duration_config.get("credits_cost", 0)))
+            except Exception:
+                cost_to_deduct = int(duration_config.get("credits_cost", 0))
+        finally:
+            db.close()
         
-        if (user.credits or 0) < cost:
+        # Check credits
+        current_credits = user.credits or 0
+        if current_credits < cost_to_deduct:
             raise HTTPException(status_code=400, detail="Insufficient credits")
         
-        # Check if user already has a subscription for this service
+        # Check service has available accounts
+        available_accounts = [acc for acc in (service_data.accounts or []) if acc.get("is_active")]
+        if not available_accounts:
+            raise HTTPException(status_code=400, detail="No available accounts for this service")
+        
+        # Helper dates
+        today = datetime.now()
+        
+        # Find existing subscription for this service
         existing_subscription = None
-        for service in (user.services or []):
-            # Try to match service by checking if the service_id corresponds to the requested service
-            service_name = request.service_name
-            db = SessionLocal()
-            try:
-                service_data = db.query(ServiceModel).filter(ServiceModel.name == service_name).first()
-            finally:
-                db.close()
-            
-            if service_data:
-                # Check if any account in this service matches the user's service_id
-                for account in (service_data.accounts or []):
-                    if account["id"] == service["service_id"]:
-                        existing_subscription = service
-                        break
-                if existing_subscription:
+        if user.services:
+            for sub in user.services:
+                if sub.get("service_name") == request.service_name:
+                    existing_subscription = sub
                     break
         
+        # Identify assigned account for extension (if any)
+        assigned_account = None
+        if existing_subscription and existing_subscription.get("account_id"):
+            for acc in available_accounts:
+                if acc.get("id") == existing_subscription.get("account_id"):
+                    assigned_account = acc
+                    break
+        
+        # If no assigned account yet (new purchase), pick one that can satisfy requested days
+        if not assigned_account:
+            max_available_days = 0
+            for account in available_accounts:
+                acc_end = parse_date(account["end_date"]) if isinstance(account.get("end_date"), str) else account.get("end_date")
+                if not acc_end:
+                    continue
+                days_until_expiry = (acc_end - today).days
+                if days_until_expiry >= requested_days and days_until_expiry > max_available_days:
+                    max_available_days = days_until_expiry
+                    assigned_account = account
+            if not assigned_account:
+                raise HTTPException(status_code=400, detail="No account can satisfy requested duration")
+        
+        # Calculate new end date respecting account expiry
+        acc_end_date = parse_date(assigned_account["end_date"]) if isinstance(assigned_account.get("end_date"), str) else assigned_account.get("end_date")
+        if not acc_end_date:
+            raise HTTPException(status_code=400, detail="Invalid service account end date")
+        
         if existing_subscription:
-            # User has existing subscription - check if extension is possible
-            db = SessionLocal()
-            try:
-                service_data = db.query(ServiceModel).filter(ServiceModel.name == request.service_name).first()
-            finally:
-                db.close()
-            if not service_data:
-                raise HTTPException(status_code=404, detail="Service not found")
-            
-            # Check if there are accounts that can extend the subscription
-            current_end_date = parse_date(existing_subscription["end_date"])
-            today = datetime.now()
-            
-            # Find the latest possible end date from available accounts
-            max_possible_end_date = current_end_date
-            has_extendable_accounts = False
-            
-            for account in (service_data.accounts or []):
-                if account["is_active"]:
-                    account_end_date = parse_date(account["end_date"])
-                    if account_end_date > current_end_date:
-                        has_extendable_accounts = True
-                        if account_end_date > max_possible_end_date:
-                            max_possible_end_date = account_end_date
-            
-            if not has_extendable_accounts:
-                raise HTTPException(status_code=400, detail="No accounts available that can extend your subscription beyond its current end date")
-            
-            # Calculate maximum additional days possible
-            max_additional_days = (max_possible_end_date - current_end_date).days
-            requested_days = duration_config["days"]
-            
-            if requested_days > max_additional_days:
-                raise HTTPException(status_code=400, detail=f"Requested duration ({requested_days} days) exceeds maximum possible extension ({max_additional_days} days)")
-            
-            # Extend the subscription
-            new_end_date = current_end_date + timedelta(days=requested_days)
-            new_end_date_str = format_date(new_end_date)
-            
-            # Update user's subscription
-            # Update user services end_date in JSON array
-            updated_services = []
-            for s in (user.services or []):
-                if s["service_id"] == existing_subscription["service_id"]:
-                    s = {**s, "end_date": new_end_date_str}
-                updated_services.append(s)
+            # Extension: base date is later of current end or today
+            current_end = parse_date(existing_subscription["end_date"]) if isinstance(existing_subscription.get("end_date"), str) else existing_subscription.get("end_date")
+            base_date = current_end if current_end and current_end > today else today
+            proposed_end = base_date + timedelta(days=requested_days)
+            if proposed_end > acc_end_date:
+                raise HTTPException(status_code=400, detail="Requested extension exceeds account expiry")
+            # Persist update
             db = SessionLocal()
             try:
                 db_user = db.query(UserModel).filter(UserModel.username == current_user.username).first()
-                db_user.services = updated_services
+                # Update in-place in JSON field
+                for sub in (db_user.services or []):
+                    if sub.get("service_name") == request.service_name:
+                        sub["end_date"] = format_date(proposed_end)
+                        sub["last_extension"] = format_date(today)
+                        sub["extension_duration"] = request.duration
+                        sub["total_duration"] = int(sub.get("total_duration", 0)) + requested_days
+                        break
+                # Deduct credits
+                if (db_user.credits or 0) < cost_to_deduct:
+                    raise HTTPException(status_code=400, detail="Insufficient credits")
+                db_user.credits = (db_user.credits or 0) - cost_to_deduct
+                # Mark JSON modified
+                flag_modified(db_user, "services")
+                db.flush()
                 db.commit()
+                db.refresh(db_user)
+                updated_credits = db_user.credits or 0
+                new_end_date_str = format_date(proposed_end)
             finally:
                 db.close()
-            
-            # Deduct credits
-            db = SessionLocal()
-            try:
-                db_user = db.query(UserModel).filter(UserModel.username == current_user.username).first()
-                db_user.credits = (db_user.credits or 0) - cost
-                db.commit()
-            finally:
-                db.close()
-            
             return {
-                "message": f"Extended subscription by {duration_config['name']}",
-                "credits": user["credits"] - cost,
-                "cost": cost,
+                "message": f"Extended {request.service_name} by {duration_config.get('name', request.duration)}",
                 "extension": True,
-                "new_end_date": new_end_date_str
+                "new_end_date": new_end_date_str,
+                "credits": updated_credits,
+                "cost": cost_to_deduct,
             }
         else:
-            # New subscription - check if service has available accounts
-            db = SessionLocal()
-            try:
-                service_data = db.query(ServiceModel).filter(ServiceModel.name == request.service_name).first()
-            finally:
-                db.close()
-            if not service_data:
-                raise HTTPException(status_code=404, detail="Service not found")
-            
-            # Check if there are any available accounts
-            available_accounts = [acc for acc in (service_data.accounts or []) if acc["is_active"]]
-            if not available_accounts:
-                raise HTTPException(status_code=400, detail="No available accounts for this service")
-            
-            # Check if any account can support the requested duration
-            today = datetime.now()
-            max_available_days = 0
-            
-            for account in available_accounts:
-                account_end_date = parse_date(account["end_date"])
-                days_until_expiry = (account_end_date - today).days
-                if days_until_expiry > max_available_days:
-                    max_available_days = days_until_expiry
-            
-            if duration_config["days"] > max_available_days:
-                raise HTTPException(status_code=400, detail=f"Requested duration ({duration_config['days']} days) exceeds maximum available days ({max_available_days} days)")
-            
-            # Deduct credits
-            db = SessionLocal()
-            try:
-                db_user = db.query(UserModel).filter(UserModel.username == current_user.username).first()
-                db_user.credits = (db_user.credits or 0) - cost
-                db.commit()
-            finally:
-                db.close()
-            
-            # Add new subscription
+            # New assignment
+            new_end_date = today + timedelta(days=requested_days)
+            if new_end_date > acc_end_date:
+                raise HTTPException(status_code=400, detail="Requested duration exceeds account expiry")
             new_subscription = {
-                "service_id": f"service_{request.duration}",
-                "end_date": "31/12/2025",
+                "service_name": request.service_name,
+                "service_id": assigned_account["id"],
+                "end_date": format_date(new_end_date),
                 "is_active": True,
+                "duration": request.duration,
+                "credits_cost": cost_to_deduct,
+                "created_date": format_date(today),
+                "account_id": assigned_account["id"],
+                "total_duration": requested_days,
+                "assignment_date": format_date(today)
             }
             db = SessionLocal()
             try:
                 db_user = db.query(UserModel).filter(UserModel.username == current_user.username).first()
-                current_services = db_user.services or []
+                current_services = list(db_user.services or [])
                 current_services.append(new_subscription)
                 db_user.services = current_services
+                # Deduct credits
+                if (db_user.credits or 0) < cost_to_deduct:
+                    raise HTTPException(status_code=400, detail="Insufficient credits")
+                db_user.credits = (db_user.credits or 0) - cost_to_deduct
+                flag_modified(db_user, "services")
+                db.flush()
                 db.commit()
+                db.refresh(db_user)
+                updated_credits = db_user.credits or 0
             finally:
                 db.close()
-            
             return {
-                "message": f"Purchased {duration_config['name']} subscription",
-                "credits": user["credits"] - cost,
-                "cost": cost,
-                "extension": False
+                "message": f"Purchased {duration_config.get('name', request.duration)} for {request.service_name}",
+                "extension": False,
+                "new_end_date": format_date(new_end_date),
+                "credits": updated_credits,
+                "cost": cost_to_deduct,
             }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error purchasing subscription: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 def get_user_subscriptions(current_user: User):
-    """Get user's subscriptions with detailed information"""
+    """Get user's subscriptions with detailed account assignment information"""
     try:
+        # Load user
         db = SessionLocal()
         try:
             user_record = db.query(UserModel).filter(UserModel.username == current_user.username).first()
@@ -248,43 +250,85 @@ def get_user_subscriptions(current_user: User):
         if not user_record:
             raise HTTPException(status_code=404, detail="User not found")
         
-        subscriptions = []
-        seen_service_ids = set()  # To avoid duplicates
+        # Preload services and build account lookup by account id
+        db = SessionLocal()
+        try:
+            service_list = db.query(ServiceModel).all()
+        finally:
+            db.close()
+        account_id_to_info = {}
+        service_name_to_image = {}
+        for svc in service_list:
+            service_name_to_image[svc.name] = svc.image
+            for acc in (svc.accounts or []):
+                acc_id = acc.get("id")
+                if acc_id:
+                    account_id_to_info[acc_id] = {"service": svc, "account": acc}
         
-        for service in (user_record.services or []):
-            # Skip if we've already seen this service_id
-            if service["service_id"] in seen_service_ids:
+        # Load duration map for fallback computation
+        durations_map = config.get_subscription_durations()
+        
+        subscriptions = []
+        seen_service_ids = set()
+        
+        for sub in (user_record.services or []):
+            # Determine account id (prefer explicit account_id, fallback to legacy service_id)
+            account_id = sub.get("account_id") or sub.get("service_id") or "Unknown"
+            # Avoid duplicate entries by service_id string
+            sid_key = sub.get("service_id") or account_id
+            if sid_key in seen_service_ids:
                 continue
-            seen_service_ids.add(service["service_id"])
+            seen_service_ids.add(sid_key)
             
-            # Find service details from services collection
-            service_name = "Unknown Service"
-            service_image = "https://via.placeholder.com/300x200/6B7280/FFFFFF?text=Service"
-            account_id = service["service_id"]
-            password = "password123"  # Default password
+            # Resolve service and account details
+            resolved = account_id_to_info.get(account_id)
+            if resolved:
+                svc = resolved["service"]
+                acc = resolved["account"]
+                service_name = svc.name
+                service_image = svc.image
+                account_username = acc.get("username", "")
+                account_password = acc.get("password", "")
+            else:
+                # Fallback using service_name if available
+                service_name = sub.get("service_name", "Unknown Service")
+                service_image = service_name_to_image.get(service_name, "https://via.placeholder.com/300x200/6B7280/FFFFFF?text=Service")
+                account_username = sub.get("account_username", "")
+                account_password = sub.get("account_password", "")
             
-            # Try to find matching service in services collection
-            db = SessionLocal()
+            # Compute total_duration from dates with sensible fallbacks
+            total_duration_days = 0
             try:
-                for service_doc in db.query(ServiceModel).all():
-                    for account in (service_doc.accounts or []):
-                        if account["id"] == service["service_id"]:
-                            service_name = service_doc.name
-                            service_image = service_doc.image
-                            password = account["password"]
-                            break
-                if service_name != "Unknown Service":
-                    pass
-            finally:
-                db.close()
+                end_date_str = sub.get("end_date")
+                end_date = parse_date(end_date_str) if isinstance(end_date_str, str) else end_date_str
+                start_str = sub.get("assignment_date") or sub.get("created_date")
+                start_date = parse_date(start_str) if isinstance(start_str, str) else start_str
+                if not start_date:
+                    # Fallback: use configured duration days if possible
+                    duration_key = sub.get("duration")
+                    if duration_key and duration_key in durations_map:
+                        total_duration_days = int(durations_map[duration_key].get("days", 0))
+                    else:
+                        total_duration_days = 0
+                elif end_date:
+                    total_duration_days = max(0, (end_date - start_date).days)
+            except Exception:
+                # Last resort: keep any stored value if present, else 0
+                total_duration_days = int(sub.get("total_duration", 0) or 0)
             
             subscriptions.append({
                 "service_name": service_name,
                 "service_image": service_image,
                 "account_id": account_id,
-                "password": password,
-                "end_date": service["end_date"],
-                "is_active": service["is_active"]
+                "account_username": account_username,
+                "account_password": account_password,
+                "end_date": sub.get("end_date"),
+                "is_active": sub.get("is_active", True),
+                "duration": sub.get("duration", ""),
+                "total_duration": total_duration_days,
+                "created_date": sub.get("created_date", ""),
+                "last_extension": sub.get("last_extension", ""),
+                "extension_duration": sub.get("extension_duration", "")
             })
         
         return {"subscriptions": subscriptions}

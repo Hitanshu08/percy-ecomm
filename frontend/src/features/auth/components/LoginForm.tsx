@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { login } from '../../../lib/apiClient';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { Button, Input } from '../../../components/ui';
+import { login } from '../../../lib/apiClient';
+import Input from '../../../components/ui/Input';
+import Button from '../../../components/ui/Button';
 
 interface LoginFormProps {
   onSwitchToSignup: () => void;
@@ -16,7 +17,6 @@ export default function LoginForm({ onSwitchToSignup, onSwitchToForgotPassword }
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const { login: authLogin } = useAuth();
   const { theme } = useTheme();
 
@@ -84,12 +84,13 @@ export default function LoginForm({ onSwitchToSignup, onSwitchToForgotPassword }
 
           {/* Password Field */}
           <Input
-            type={showPassword ? "text" : "password"}
+            type="password"
             label="Password"
             value={formData.password}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('password', e.target.value)}
             placeholder="Enter your password"
             error={errors.password}
+            showPasswordToggle={true}
           />
 
           {/* Forgot Password Link */}
@@ -114,21 +115,22 @@ export default function LoginForm({ onSwitchToSignup, onSwitchToForgotPassword }
             disabled={isLoading}
             className="w-full"
           >
-            {isLoading ? 'Signing In...' : 'Sign In'}
+            {isLoading ? 'Signing in...' : 'Sign In'}
           </Button>
-        </form>
 
-        <div className="mt-6 text-center">
-          <p className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-            Don't have an account?{' '}
+          <div className="text-center">
+            <span className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+              Don't have an account?{' '}
+            </span>
             <button
+              type="button"
               onClick={onSwitchToSignup}
               className="text-blue-600 hover:text-blue-700 font-medium"
             >
               Sign up
             </button>
-          </p>
-        </div>
+          </div>
+        </form>
       </div>
     </div>
   );
