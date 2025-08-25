@@ -82,7 +82,7 @@
     "endpoints": {
       "health": "/health",
       "signup": "/signup",
-      "login": "/token",
+      "login": "/login",
       "me": "/me",
       "dashboard": "/dashboard",
       "change_password": "/change-password",

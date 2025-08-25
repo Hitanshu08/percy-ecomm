@@ -77,7 +77,7 @@ Contains static application settings:
     "endpoints": {
       "health": "/health",
       "signup": "/signup",
-      "login": "/token",
+      "login": "/login",
       "me": "/me",
       "dashboard": "/dashboard",
       "change_password": "/change-password",
@@ -128,7 +128,7 @@ ENVIRONMENT=development
 DATABASE_URL=sqlite:///./percy_ecomm.db
 
 # API Settings
-API_BASE_URL=https://devmens.com
+API_BASE_URL=http://127.0.0.1:8000
 ```
 
 ### Database-Based Configuration
@@ -150,11 +150,11 @@ Contains static application settings:
     "description": "Subscription-based e-commerce platform for digital services"
   },
   "api": {
-    "base_url": "https://devmens.com",
+    "base_url": "http://127.0.0.1:8000",
     "endpoints": {
       "health": "/health",
       "signup": "/signup",
-      "login": "/token",
+      "login": "/login",
       "me": "/me",
       "dashboard": "/dashboard",
       "change_password": "/change-password",
@@ -218,7 +218,7 @@ Environment-specific settings:
 
 ```bash
 # API Configuration
-VITE_API_BASE_URL=https://devmens.com
+VITE_API_BASE_URL=http://127.0.0.1:8000
 
 # Environment
 VITE_ENVIRONMENT=development
@@ -248,7 +248,7 @@ subscription_durations = config.get_subscription_durations()
 
 # Get nested configuration
 credit_rate = config.get("credits.credit_rate", 10)
-api_endpoint = config.get("api.endpoints.login", "/token")
+api_endpoint = config.get("api.endpoints.login", "/login")
 
 # Environment variables
 import os
@@ -267,7 +267,7 @@ const apiConfig = config.getApiConfig();
 const creditsConfig = config.getCreditsConfig();
 
 // Get API URL
-const loginUrl = config.getApiUrl('/token');
+const loginUrl = config.getApiUrl('/login');
 
 // Get nested configuration
 const creditRate = config.get('credits.credit_rate', 10);

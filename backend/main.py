@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from api.v1 import auth, users, services, wallet, admin
 from core.config import settings
@@ -14,6 +15,12 @@ app = FastAPI(
     version=settings.VERSION,
     debug=settings.DEBUG
 )
+
+NO_STORE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
 
 # CORS middleware
 app.add_middleware(

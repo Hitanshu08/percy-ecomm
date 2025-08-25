@@ -27,19 +27,21 @@ interface ServiceAccount {
   password: string;
   end_date: string;
   is_active: boolean;
+  credits: Record<string, number>;
 }
 
 interface Service {
   name: string;
   image: string;
   accounts: ServiceAccount[];
+  credits: Record<string, number>;
 }
 
 interface User {
   username: string;
   email: string;
   role: string;
-  credits?: number;
+  credits: number;
   services: Array<{
     service_id: string;
     end_date: string;
@@ -59,6 +61,7 @@ export default function Admin() {
   const [newService, setNewService] = useState({
     name: '',
     image: '',
+    credits: {},
     accounts: [{ id: '', password: '', end_date: '', is_active: true }]
   });
   const [editingService, setEditingService] = useState<string | null>(null);
@@ -118,6 +121,15 @@ export default function Admin() {
     }
   };
 
+  // Default per-duration credits when a service has no custom credits configured
+  const defaultDurationCredits: Record<string, number> = {
+    "7days": 1,
+    "1month": 2,
+    "3months": 3,
+    "6months": 5,
+    "1year": 9,
+  };
+
   const getServiceCreditsForDuration = (serviceName: string, duration: string): number => {
     const service = serviceCredits[serviceName as keyof typeof serviceCredits];
     if (service && duration in service) {
@@ -151,6 +163,7 @@ export default function Admin() {
       setNewService({
         name: '',
         image: '',
+        credits: {},
         accounts: [{ id: '', password: '', end_date: '', is_active: true }]
       });
       fetchData();
@@ -169,6 +182,7 @@ export default function Admin() {
         setNewService({
           name: '',
           image: '',
+          credits: {},
           accounts: [{ id: '', password: '', end_date: '', is_active: true }]
         });
         fetchData();
@@ -449,7 +463,7 @@ export default function Admin() {
                       <label className="text-xs w-24 text-gray-700 dark:text-gray-300">{(d as any).name}</label>
                       <input
                         type="number"
-                        value={(newService as any).credits?.[key] ?? (d as any).credits_cost}
+                        value={(newService as any).credits?.[key] ?? (defaultDurationCredits[key] ?? (d as any).credits_cost)}
                         onChange={(e) => setNewService(prev => ({
                           ...prev,
                           credits: { ...(prev as any).credits, [key]: Number(e.target.value) }
@@ -561,6 +575,7 @@ export default function Admin() {
                       setNewService({
                         name: '',
                         image: '',
+                        credits: {},
                         accounts: [{ id: '', password: '', end_date: '', is_active: true }]
                       });
                     }}
@@ -629,7 +644,9 @@ export default function Admin() {
                               const durations = config.getSubscriptionDurations();
                               const initial: Record<string, number> = {};
                               Object.entries(durations).forEach(([key, d]: any) => {
-                                initial[key] = (data.credits && data.credits[key] != null) ? Number(data.credits[key]) : Number((d as any).credits_cost);
+                                initial[key] = (data.credits && data.credits[key] != null)
+                                  ? Number(data.credits[key])
+                                  : Number(defaultDurationCredits[key] ?? (d as any).credits_cost);
                               });
                               setCreditsForm(initial);
                             } catch (e) {
@@ -660,7 +677,7 @@ export default function Admin() {
                                 <label className="text-xs w-24 text-gray-700 dark:text-gray-300">{(d as any).name}</label>
                                 <input
                                   type="number"
-                                  value={creditsForm[key] ?? (d as any).credits_cost}
+                                  value={creditsForm[key] ?? (defaultDurationCredits[key] ?? (d as any).credits_cost)}
                                   onChange={(e) => setCreditsForm(prev => ({ ...prev, [key]: Number(e.target.value) }))}
                                   className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-xs"
                                 />

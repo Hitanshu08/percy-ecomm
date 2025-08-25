@@ -9,7 +9,7 @@ export default function UserMenu() {
     <div className="flex items-center space-x-3">
       <span className="hidden sm:inline text-sm text-gray-700">{user?.email}</span>
       <Link to="/profile" className="text-sm text-blue-600 hover:underline">Profile</Link>
-      <button onClick={logout} className="text-sm text-gray-600 hover:text-gray-900">Logout</button>
+      <button onClick={logout} className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400">Logout</button>
     </div>
   );
 }

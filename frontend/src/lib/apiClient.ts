@@ -46,6 +46,9 @@ async function refreshAccessToken(): Promise<string | null> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0'
       },
       body: JSON.stringify({
         refresh_token: refreshToken
@@ -101,7 +104,10 @@ async function authHeadersWithUser(): Promise<Record<string, string>> {
   const user = getUserData();
   
   const headers: Record<string, string> = {
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0"
   };
   
   if (token) {
@@ -124,7 +130,10 @@ async function authHeadersFormData(): Promise<Record<string, string>> {
   const user = getUserData();
   
   const headers: Record<string, string> = {
-    "Content-Type": "application/x-www-form-urlencoded"
+    "Content-Type": "application/x-www-form-urlencoded",
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0"
   };
   
   if (token) {
@@ -219,7 +228,11 @@ export async function apiCall<T>(url: string, options: RequestInit = {}): Promis
 export async function signup(username: string, email: string, password: string) {
   const response = await fetch(`${API_URL}/signup`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json',
+      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+      "Pragma": "no-cache",
+      "Expires": "0"
+     },
     body: JSON.stringify({ username, email, password })
   });
   return handle(response);
@@ -230,9 +243,13 @@ export async function login(email: string, password: string) {
   formData.append('username', email);
   formData.append('password', password);
 
-  const response = await fetch(`${API_URL}/token`, {
+  const response = await fetch(`${API_URL}/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded',
+      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+      "Pragma": "no-cache",
+      "Expires": "0"
+     },
     body: formData
   });
   

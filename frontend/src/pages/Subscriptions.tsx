@@ -265,7 +265,7 @@ export default function Subscriptions() {
                                 </button>
                               </div>
                               <Button
-                                onClick={() => copyToClipboard(subscription.password, 'Password')}
+                                onClick={() => copyToClipboard(subscription.account_password, 'Password')}
                                 variant="primary"
                                 size="sm"
                                 title="Copy Password"

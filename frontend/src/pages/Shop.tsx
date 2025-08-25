@@ -13,6 +13,7 @@ interface Service {
   max_days_until_expiry: number;
   max_end_date: string;
   credits?: Record<string, number>;
+  user_end_date?: string; // added from backend to determine extension
 }
 
 interface UserSubscription {
@@ -34,7 +35,6 @@ const Shop: React.FC = () => {
   const { user } = useAuth();
   const { callApi } = useApi();
   const [services, setServices] = useState<Service[]>([]);
-  const [userSubscriptions, setUserSubscriptions] = useState<UserSubscription[]>([]);
   const [selectedDuration, setSelectedDuration] = useState('7days');
   const [purchasing, setPurchasing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -47,13 +47,8 @@ const Shop: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [servicesData, subscriptionsData] = await Promise.all([
-        callApi<{ services: Service[] }>(`${config.getApiUrl()}/services`),
-        callApi<{ subscriptions: UserSubscription[] }>(`${config.getApiUrl()}/subscriptions`)
-      ]);
-      
+      const servicesData = await callApi<{ services: Service[] }>(`${config.getApiUrl()}/services`);
       setServices(servicesData.services);
-      setUserSubscriptions(subscriptionsData.subscriptions);
     } catch (error) {
       console.error('Error fetching data:', error);
       setMessage({
@@ -76,12 +71,28 @@ const Shop: React.FC = () => {
 
   // Check if user has a subscription for a service
   const hasSubscription = (serviceName: string) => {
-    return userSubscriptions.some(sub => sub.service_name === serviceName);
+    const svc = services.find(s => s.name === serviceName);
+    return Boolean(svc?.user_end_date);
   };
 
   // Get current subscription info for a service
   const getCurrentSubscriptionInfo = (serviceName: string) => {
-    return userSubscriptions.find(sub => sub.service_name === serviceName);
+    const svc = services.find(s => s.name === serviceName);
+    if (!svc || !svc.user_end_date) return null as any;
+    return {
+      service_name: serviceName,
+      service_image: svc.image,
+      account_id: '',
+      account_username: '',
+      account_password: '',
+      end_date: svc.user_end_date,
+      is_active: true,
+      duration: '',
+      total_duration: 0,
+      created_date: '',
+      last_extension: '',
+      extension_duration: ''
+    } as any;
   };
 
   // Get available duration options for a service based on account expiry dates and existing subscription
@@ -90,12 +101,12 @@ const Shop: React.FC = () => {
       return [];
     }
 
-    const currentSub = getCurrentSubscriptionInfo(service.name);
+    const currentSub = service.user_end_date ? getCurrentSubscriptionInfo(service.name) : null;
     const subscriptionDurations = config.getSubscriptionDurations();
     
     if (currentSub) {
       // Extension logic - user can only extend existing subscription
-      const currentEndDate = parseDate(currentSub.end_date);
+      const currentEndDate = parseDate(currentSub!.end_date);
       const accountEndDate = parseDate(service.max_end_date);
       const today = new Date();
       
@@ -283,9 +294,6 @@ const Shop: React.FC = () => {
                         Your Current Assignment:
                       </p>
                       <div className="text-xs text-blue-700 dark:text-blue-400 space-y-1">
-                        <div><strong>Account ID:</strong> {currentSubInfo.account_id}</div>
-                        <div><strong>Username:</strong> {currentSubInfo.account_username}</div>
-                        <div><strong>Password:</strong> {currentSubInfo.account_password}</div>
                         <div><strong>Expires:</strong> {currentSubInfo.end_date}</div>
                         <div><strong>Total Duration:</strong> {currentSubInfo.total_duration} days</div>
                         {currentSubInfo.last_extension && (

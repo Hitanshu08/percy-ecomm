@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     
     # API settings
     API_V1_STR: str = "/api/v1"
-    API_BASE_URL: str = "https://devmens.com"
+    API_BASE_URL: str = "http://127.0.0.1:8000"
     LOG_LEVEL: str = "INFO"
     
     class Config:

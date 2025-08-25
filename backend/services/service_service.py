@@ -27,13 +27,20 @@ def format_date(date_obj: datetime) -> str:
     """Format datetime object to dd/mm/yyyy format"""
     return date_obj.strftime("%d/%m/%Y")
 
-def get_services():
-    """Get all available services with aggregated account information"""
+def get_services(current_user: User = None):
+    """Get all available services with aggregated account information and user_end_date if authenticated"""
     try:
         db = SessionLocal()
         services = []
         today = datetime.now()
         try:
+            # Preload current user record if provided
+            user_record = None
+            if current_user and getattr(current_user, "username", None):
+                try:
+                    user_record = db.query(UserModel).filter(UserModel.username == current_user.username).first()
+                except Exception:
+                    user_record = None
             for service in db.query(ServiceModel).all():
                 available_accounts = []
                 max_days_until_expiry = 0
@@ -54,6 +61,26 @@ def get_services():
                             "end_date": account["end_date"]
                         })
                 
+                # Determine user's subscription end date for this service if logged in
+                user_end_date = ""
+                if user_record and isinstance(user_record.services, list):
+                    # Prefer direct match on service_name
+                    matched = None
+                    for sub in user_record.services:
+                        if sub.get("service_name") == service.name:
+                            matched = sub
+                            break
+                    if not matched:
+                        # Fallback: match by account id set as service_id
+                        service_account_ids = set(acc.get("id") for acc in (service.accounts or []))
+                        for sub in user_record.services:
+                            sid = sub.get("service_id") or sub.get("account_id")
+                            if sid in service_account_ids:
+                                matched = sub
+                                break
+                    if matched:
+                        user_end_date = matched.get("end_date", "")
+                
                 services.append({
                     "name": service.name,
                     "image": service.image,
@@ -61,7 +88,8 @@ def get_services():
                     "total_accounts": len(service.accounts or []),
                     "max_days_until_expiry": max_days_until_expiry,
                     "max_end_date": max_end_date,
-                    "credits": service.credits or {}
+                    "credits": service.credits or {},
+                    "user_end_date": user_end_date,
                 })
             return {"services": services}
         finally:
