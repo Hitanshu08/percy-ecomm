@@ -142,6 +142,14 @@ async def purchase_subscription(request: SubscriptionPurchase, current_user: Use
                 if sub.get("service_name") == request.service_name:
                     existing_subscription = sub
                     break
+            if existing_subscription is None:
+                # Fallback: match any subscription tied to this service's accounts
+                service_account_ids = set(acc.get("id") for acc in available_accounts)
+                for sub in user.services:
+                    sid = sub.get("service_id") or sub.get("account_id")
+                    if sid in service_account_ids:
+                        existing_subscription = sub
+                        break
         assigned_account = None
         if existing_subscription and existing_subscription.get("account_id"):
             for acc in available_accounts:
@@ -168,12 +176,25 @@ async def purchase_subscription(request: SubscriptionPurchase, current_user: Use
             base_date = current_end if current_end and current_end > today else today
             proposed_end = base_date + timedelta(days=requested_days)
             if proposed_end > acc_end_date:
-                raise HTTPException(status_code=400, detail="Requested extension exceeds account expiry")
+                # Try to reassign to another account that can satisfy the proposed end date
+                reassigned = False
+                for acc in available_accounts:
+                    acc_end = parse_date(acc["end_date"]) if isinstance(acc.get("end_date"), str) else acc.get("end_date")
+                    if acc_end and acc_end >= proposed_end:
+                        assigned_account = acc
+                        reassigned = True
+                        break
+                if not reassigned:
+                    raise HTTPException(status_code=400, detail="No account can satisfy requested extension")
             result = await _db.execute(select(UserModel).where(UserModel.username == current_user.username))
             db_user = result.scalars().first()
             for sub in (db_user.services or []):
                 if sub.get("service_name") == request.service_name:
                     sub["end_date"] = format_date(proposed_end)
+                    # If reassigned, update backing account id
+                    if assigned_account and assigned_account.get("id"):
+                        sub["service_id"] = assigned_account.get("id")
+                        sub["account_id"] = assigned_account.get("id")
                     sub["last_extension"] = format_date(today)
                     sub["extension_duration"] = request.duration
                     sub["total_duration"] = int(sub.get("total_duration", 0)) + requested_days
