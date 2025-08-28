@@ -4,14 +4,17 @@ from db.session import Base, engine
 from db.models.user import User
 from db.models.service import Service
 import logging
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 logger = logging.getLogger(__name__)
 
-def initialize_database():
+async def initialize_database():
     """Create tables only. Use database_setup.ipynb for seeding data."""
     try:
-        # Create all tables
-        Base.metadata.create_all(bind=engine)
+        # Run DDL in async context
+        assert isinstance(engine, AsyncEngine)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
         logger.info("Database tables created successfully")
         
         # Note: Data seeding is now handled by database_setup.ipynb

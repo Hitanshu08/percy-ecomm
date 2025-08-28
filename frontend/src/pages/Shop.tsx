@@ -4,6 +4,7 @@ import { useApi } from '../lib/useApi';
 import { config } from '../config/index';
 import { Button, Select } from '../components/ui';
 import { Spinner } from '../components/feedback';
+import ServiceCard from '../components/shop/ServiceCard';
 
 interface Service {
   name: string;
@@ -14,21 +15,6 @@ interface Service {
   max_end_date: string;
   credits?: Record<string, number>;
   user_end_date?: string; // added from backend to determine extension
-}
-
-interface UserSubscription {
-  service_name: string;
-  service_image: string;
-  account_id: string;
-  account_username: string;
-  account_password: string;
-  end_date: string;
-  is_active: boolean;
-  duration: string;
-  total_duration: number;
-  created_date: string;
-  last_extension: string;
-  extension_duration: string;
 }
 
 const Shop: React.FC = () => {
@@ -207,7 +193,7 @@ const Shop: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+    <div className="flex-1 bg-gray-50 dark:bg-gray-900 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
@@ -275,95 +261,17 @@ const Shop: React.FC = () => {
             const currentSubInfo = getCurrentSubscriptionInfo(service.name);
             
             return (
-              <div key={service.name} className="border rounded-md overflow-hidden bg-white dark:bg-gray-800">
-                {/* Service Image */}
-                <img src={service.image} alt={service.name} className="h-40 w-full object-cover bg-[ghostwhite]" />
-                
-                {/* Service Info */}
-                <div className="p-4 space-y-3">
-                  <div className="text-lg font-medium text-gray-900 dark:text-white">{service.name}</div>
-                  
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {service.available_accounts} of {service.total_accounts} accounts available
-                  </p>
-
-                  {/* Current Subscription Info */}
-                  {hasExistingSubscription && currentSubInfo && (
-                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
-                      <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
-                        Your Current Assignment:
-                      </p>
-                      <div className="text-xs text-blue-700 dark:text-blue-400 space-y-1">
-                        <div><strong>Expires:</strong> {currentSubInfo.end_date}</div>
-                        <div><strong>Total Duration:</strong> {currentSubInfo.total_duration} days</div>
-                        {currentSubInfo.last_extension && (
-                          <div><strong>Last Extended:</strong> {currentSubInfo.last_extension}</div>
-                        )}
-                        <div className="mt-2 text-blue-600 dark:text-blue-400">
-                          <strong>Extension will add to your current subscription</strong>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Account Availability Info */}
-                  {!hasExistingSubscription && service.available_accounts > 0 && (
-                    <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-md">
-                      <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
-                        Account Availability:
-                      </p>
-                      <div className="text-xs text-green-700 dark:text-green-400">
-                        <div>Max available time: {service.max_days_until_expiry} days</div>
-                        <div>Account expires: {service.max_end_date}</div>
-                        <div className="mt-2 text-green-600 dark:text-green-400">
-                          <strong>You will be assigned to a specific account</strong>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Duration Selection */}
-                  {hasAvailableOptions && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        {hasExistingSubscription ? 'Select Extension Duration:' : 'Select Duration:'}
-                      </label>
-                      <Select
-                        value={selectedDuration}
-                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedDuration(e.target.value)}
-                      >
-                        {availableDurations.map((duration) => (
-                          <option key={duration.value} value={duration.value}>
-                            {duration.label} - {duration.credits_cost} credits
-                          </option>
-                        ))}
-                      </Select>
-                    </div>
-                  )}
-
-                  {/* Purchase/Extension Button */}
-                  <Button
-                    onClick={() => handlePurchase(service.name)}
-                    disabled={purchasing || !hasAvailableOptions}
-                    variant="primary"
-                    className="w-full"
-                  >
-                    {purchasing ? 'Processing...' : !hasAvailableOptions ? 'No Options Available' : hasExistingSubscription ? 'Extend Subscription' : 'Get Account Assignment'}
-                  </Button>
-
-                  {/* No Options Available Message */}
-                  {!hasAvailableOptions && (
-                    <div className="text-center py-4">
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {hasExistingSubscription 
-                          ? "No extension options available for this subscription at this time."
-                          : "No duration options available for this service at this time."
-                        }
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <ServiceCard
+                key={service.name}
+                service={service as any}
+                availableDurations={availableDurations as any}
+                hasExistingSubscription={hasExistingSubscription}
+                currentSubInfo={currentSubInfo as any}
+                selectedDuration={selectedDuration}
+                onChangeDuration={(val) => setSelectedDuration(val)}
+                onPurchase={(name) => handlePurchase(name)}
+                purchasing={purchasing}
+              />
             );
           })}
         </div>

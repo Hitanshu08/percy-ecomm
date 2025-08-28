@@ -17,26 +17,8 @@ import Subscriptions from "./pages/Subscriptions";
 import Admin from "./pages/Admin";
 import AccessDenied from "./pages/AccessDenied";
 import NotFound from "./pages/NotFound";
-import TermsAndConditions from "./pages/TermsAndConditions";
-
-// Protected Route Component
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />;
-  }
-
-  return <>{children}</>;
-}
+import TermsAndConditions from "./components/TermsAndConditions";
+import ProtectedRoute from "./components/auth/ProtectedRoute";
 
 // Admin Route Component
 function AdminRoute({ children }: { children: React.ReactNode }) {
@@ -54,9 +36,9 @@ function AppLayout() {
   const { theme } = useTheme();
   
   return (
-    <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
+    <div className={`min-h-screen flex flex-col ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
       <Header />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 overflow-auto w-full">
         <Routes>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<UserPage />} />

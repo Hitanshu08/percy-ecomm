@@ -60,6 +60,11 @@ class AdminUpdateSubscriptionEndDate(BaseModel):
     service_id: str
     end_date: str  # dd/mm/yyyy
 
+class AdminUpdateSubscriptionActive(BaseModel):
+    username: str
+    service_id: str
+    is_active: bool
+
 class AdminAssignSubscription(BaseModel):
     username: str
     # Either provide service_id + end_date, or service_name + duration

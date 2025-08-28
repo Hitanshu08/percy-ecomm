@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import {
-  getServices,
   createService,
   updateService,
   deleteService,
@@ -19,8 +18,8 @@ import {
   removeUserSubscription,
 } from '../lib/apiClient';
 import { Button, Input, Checkbox } from '../components/ui';
-import { useApi } from '../lib/useApi';
 import { config } from '../config/index';
+import Spinner from '../components/feedback/Spinner';
 
 interface ServiceAccount {
   id: string;
@@ -42,11 +41,7 @@ interface User {
   email: string;
   role: string;
   credits: number;
-  services: Array<{
-    service_id: string;
-    end_date: string;
-    is_active: boolean;
-  }>;
+  services_count: number;
 }
 
 export default function Admin() {
@@ -55,7 +50,20 @@ export default function Admin() {
   const [services, setServices] = useState<Service[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [servicesLoading, setServicesLoading] = useState(false);
+  const [usersLoading, setUsersLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'services' | 'users' | 'credits'>('services');
+  // Pagination & filter state
+  const [servicesSearch, setServicesSearch] = useState('');
+  const [servicesPage, setServicesPage] = useState(1);
+  const [servicesPageSize, setServicesPageSize] = useState(5);
+  const [servicesTotal, setServicesTotal] = useState(0);
+  const [servicesTotalPages, setServicesTotalPages] = useState(1);
+  const [usersSearch, setUsersSearch] = useState('');
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersPageSize, setUsersPageSize] = useState(5);
+  const [usersTotal, setUsersTotal] = useState(0);
+  const [usersTotalPages, setUsersTotalPages] = useState(1);
   
   // Service management state
   const [newService, setNewService] = useState({
@@ -93,8 +101,54 @@ export default function Admin() {
   const [serviceCreditPreview, setServiceCreditPreview] = useState<number | null>(null);
 
   useEffect(() => {
-    fetchData();
+    const init = async () => {
+      try {
+        setLoading(true);
+        await Promise.all([fetchServices(false), fetchUsers(false)]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
   }, []);
+
+  // Load saved pagination from localStorage
+  useEffect(() => {
+    const sPage = Number(localStorage.getItem('admin_services_page') || '1');
+    const sSize = Number(localStorage.getItem('admin_services_page_size') || '20');
+    const uPage = Number(localStorage.getItem('admin_users_page') || '1');
+    const uSize = Number(localStorage.getItem('admin_users_page_size') || '20');
+    if (sPage) setServicesPage(sPage);
+    if (sSize) setServicesPageSize(sSize);
+    if (uPage) setUsersPage(uPage);
+    if (uSize) setUsersPageSize(uSize);
+  }, []);
+
+  // Load saved active tab from localStorage
+  useEffect(() => {
+    const savedTab = localStorage.getItem('admin_active_tab');
+    if (savedTab === 'services' || savedTab === 'users' || savedTab === 'credits') {
+      setActiveTab(savedTab as 'services' | 'users' | 'credits');
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('admin_services_page', String(servicesPage));
+  }, [servicesPage]);
+  useEffect(() => {
+    localStorage.setItem('admin_services_page_size', String(servicesPageSize));
+  }, [servicesPageSize]);
+  useEffect(() => {
+    localStorage.setItem('admin_users_page', String(usersPage));
+  }, [usersPage]);
+  useEffect(() => {
+    localStorage.setItem('admin_users_page_size', String(usersPageSize));
+  }, [usersPageSize]);
+
+  // Persist active tab to localStorage
+  useEffect(() => {
+    localStorage.setItem('admin_active_tab', activeTab);
+  }, [activeTab]);
 
   // Service credit configuration (matching backend config)
   const serviceCredits = {
@@ -139,22 +193,59 @@ export default function Admin() {
   };
 
 
-  const fetchData = async () => {
+  const fetchServices = async (showSectionLoading: boolean = true) => {
     try {
-      const [servicesData, usersData] = await Promise.all([
-        getAdminServices(),
-        getAdminUsers(),
-      ]);
-      setServices((servicesData as any).services || (servicesData as any) || []);
-      setUsers((usersData as any).users || (usersData as any) || []);
+      if (showSectionLoading) {
+        setServicesLoading(true);
+        setServices([]);
+      }
+      const servicesData = await getAdminServices(servicesPage, servicesPageSize, servicesSearch);
+      const sPayload: any = servicesData;
+      setServices((sPayload as any).services || (sPayload as any) || []);
+      setServicesTotal(typeof sPayload.total === 'number' ? sPayload.total : (sPayload.services ? sPayload.services.length : 0));
+      setServicesTotalPages(typeof sPayload.total_pages === 'number' ? sPayload.total_pages : 1);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Error fetching services:', error);
       setServices([]);
-      setUsers([]);
+      setServicesTotal(0);
+      setServicesTotalPages(1);
     } finally {
-      setLoading(false);
+      setServicesLoading(false);
     }
   };
+
+  const fetchUsers = async (showSectionLoading: boolean = true) => {
+    try {
+      if (showSectionLoading) {
+        setUsersLoading(true);
+        setUsers([]);
+      }
+      const usersData = await getAdminUsers(usersPage, usersPageSize, usersSearch);
+      const uPayload: any = usersData;
+      setUsers((uPayload as any).users || (uPayload as any) || []);
+      setUsersTotal(typeof uPayload.total === 'number' ? uPayload.total : (uPayload.users ? uPayload.users.length : 0));
+      setUsersTotalPages(typeof uPayload.total_pages === 'number' ? uPayload.total_pages : 1);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      setUsers([]);
+      setUsersTotal(0);
+      setUsersTotalPages(1);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  // Re-fetch services when its pagination/filter changes
+  useEffect(() => {
+    if (!loading) fetchServices(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [servicesPage, servicesPageSize, servicesSearch]);
+
+  // Re-fetch users when its pagination/filter changes
+  useEffect(() => {
+    if (!loading) fetchUsers(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usersPage, usersPageSize, usersSearch]);
 
   const handleCreateService = async () => {
     try {
@@ -166,7 +257,7 @@ export default function Admin() {
         credits: {},
         accounts: [{ id: '', password: '', end_date: '', is_active: true }]
       });
-      fetchData();
+      await fetchServices(true);
     } catch (error: any) {
       console.error('Error creating service:', error);
       alert(`Error: ${error?.message || 'Error creating service'}`);
@@ -185,7 +276,7 @@ export default function Admin() {
           credits: {},
           accounts: [{ id: '', password: '', end_date: '', is_active: true }]
         });
-        fetchData();
+        await fetchServices(true);
       } catch (error: any) {
         console.error('Error updating service:', error);
         alert(`Error: ${error?.message || 'Error updating service'}`);
@@ -223,7 +314,7 @@ export default function Admin() {
       alert(message);
       
       // Refresh data and update any expanded user subscriptions
-      await fetchData();
+      await fetchServices(true);
       
       // If any user has expanded subscriptions, refresh them to show updated data
       if (expandedUser && subsByUser[expandedUser]) {
@@ -252,7 +343,7 @@ export default function Admin() {
       setSelectedUser('');
       setSelectedService('');
       setSelectedDuration('');
-      fetchData();
+      await fetchUsers(true);
     } catch (error: any) {
       try {
         console.error('Error adding subscription:', error);
@@ -281,7 +372,7 @@ export default function Admin() {
       setCreditUser('');
       setSelectedSubscription('');
       setCreditAmount(0);
-      fetchData();
+      await fetchUsers(true);
     } catch (error: any) {
       console.error('Error removing credits:', error);
       alert(`Error removing credits: ${error?.message || ''}`);
@@ -300,7 +391,7 @@ export default function Admin() {
       await apiRemoveCredits(username, amount, serviceId);
       alert(`Removed ${amount} credits from ${username}'s subscription ${serviceId}`);
       await fetchUserSubscriptions(username);
-      fetchData();
+      await fetchUsers(true);
     } catch (e) {
       console.error('Error removing credits from subscription', e);
       alert('Error removing credits');
@@ -336,7 +427,7 @@ export default function Admin() {
         setCreditUser('');
         setSelectedSubscription('');
         setCreditAmount(0);
-        fetchData();
+        await fetchUsers(true);
     } catch (error: any) {
       console.error('Error adding credits:', error);
       alert(`Error adding credits: ${error?.message || ''}`);
@@ -384,16 +475,39 @@ export default function Admin() {
     return dateString;
   };
 
+  // Derived lists: pagination using API totals
+  const filteredServices = services;
+
+  const totalServicePages = Math.max(1, servicesTotalPages || Math.ceil(servicesTotal / servicesPageSize));
+  const currentServicesPage = Math.min(servicesPage, totalServicePages);
+  const pagedServices = React.useMemo(() => {
+    return filteredServices;
+  }, [filteredServices]);
+
+  React.useEffect(() => {
+    setServicesPage(1);
+  }, [servicesSearch, servicesPageSize]);
+
+  const filteredUsers = users;
+
+  const totalUserPages = Math.max(1, usersTotalPages || Math.ceil(usersTotal / usersPageSize));
+  const currentUsersPage = Math.min(usersPage, totalUserPages);
+  const pagedUsers = React.useMemo(() => {
+    return filteredUsers;
+  }, [filteredUsers]);
+
+  React.useEffect(() => {
+    setUsersPage(1);
+  }, [usersSearch, usersPageSize]);
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
+      <Spinner />
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+    <div className="flex-1 bg-gray-50 dark:bg-gray-900 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
@@ -440,17 +554,35 @@ export default function Admin() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <Input
                   type="text"
-                  placeholder="Service Name"
+                  label="Service Name"
+                  placeholder="Enter service name"
                   value={newService.name}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewService({ ...newService, name: e.target.value })}
                 />
                 <Input
                   type="text"
-                  placeholder="Image URL"
+                  label="Image URL"
+                  placeholder="https://example.com/image.png"
                   value={newService.image}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewService({ ...newService, image: e.target.value })}
                 />
               </div>
+
+              {newService.image?.trim() ? (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Image Preview
+                  </label>
+                  <img
+                    src={newService.image}
+                    alt={newService.name || 'Service image preview'}
+                    className="w-48 h-28 rounded border border-gray-200 dark:border-gray-700 object-cover bg-[ghostwhite]"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.visibility = 'hidden';
+                    }}
+                  />
+                </div>
+              ) : null}
 
               {/* Credits Section */}
               <div className="mb-4">
@@ -595,14 +727,36 @@ export default function Admin() {
                 </h2>
               </div>
               <div className="p-4">
+                {/* Services filter and page size */}
+                <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2">
+                  <input
+                    type="text"
+                    value={servicesSearch}
+                    onChange={(e) => setServicesSearch(e.target.value)}
+                    placeholder="Filter services by name or account id"
+                    className="w-full sm:max-w-xs px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-sm"
+                  />
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-600 dark:text-gray-300">Page size</label>
+                    <select
+                      value={servicesPageSize}
+                      onChange={(e) => setServicesPageSize(Number(e.target.value))}
+                      className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-sm"
+                    >
+                      {[5,10,20,50,100].map(n => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {(services || []).map((service) => (
+                  {pagedServices.map((service) => (
                     <div key={service.name} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700">
                       <div className="flex items-center space-x-4 mb-4">
                         <img
                           src={service.image}
                           alt={service.name}
-                          className="w-16 h-16 rounded-lg object-cover"
+                          className="w-24 h-16 rounded-lg object-cover bg-[ghostwhite]"
                         />
                         <div>
                           <h3 className="text-lg font-medium text-gray-900 dark:text-white">
@@ -615,13 +769,17 @@ export default function Admin() {
                       </div>
                       <div className="space-y-2 mb-4">
                         {service.accounts.map((account, index) => (
-                          <div key={index} className="text-sm">
-                            <span className="text-gray-600 dark:text-gray-400">ID: {account.id}</span>
-                            <span className={`ml-2 px-2 py-1 rounded text-xs ${
-                              account.is_active
-                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                            }`}>
+                          <div key={index} className="text-xs sm:text-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                            <span className="text-gray-600 dark:text-gray-400 break-words">
+                              <span className="font-medium">ID:</span> {account.id}
+                            </span>
+                            <span
+                              className={`self-start sm:self-auto inline-block px-2 py-0.5 rounded text-[10px] sm:text-xs ${
+                                account.is_active
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                  : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                              }`}
+                            >
                               {account.is_active ? 'Active' : 'Inactive'}
                             </span>
                           </div>
@@ -635,29 +793,6 @@ export default function Admin() {
                           className="flex-1"
                         >
                           Edit
-                        </Button>
-                        <Button
-                          onClick={async () => {
-                            setEditingCreditsFor(service.name);
-                            try {
-                              const data: any = await getServiceCredits(service.name);
-                              const durations = config.getSubscriptionDurations();
-                              const initial: Record<string, number> = {};
-                              Object.entries(durations).forEach(([key, d]: any) => {
-                                initial[key] = (data.credits && data.credits[key] != null)
-                                  ? Number(data.credits[key])
-                                  : Number(defaultDurationCredits[key] ?? (d as any).credits_cost);
-                              });
-                              setCreditsForm(initial);
-                            } catch (e) {
-                              setCreditsForm({});
-                            }
-                          }}
-                          variant="secondary"
-                          size="sm"
-                          className="flex-1"
-                        >
-                          Edit Credits
                         </Button>
                         <Button
                           onClick={() => handleDeleteService(service.name)}
@@ -710,6 +845,26 @@ export default function Admin() {
                       )}
                     </div>
                   ))}
+                </div>
+                {/* Services pagination */}
+                <div className="mt-4 flex items-center justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-300">Page {currentServicesPage} of {totalServicePages} • {servicesTotal} items</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setServicesPage(p => Math.max(1, p - 1))}
+                      disabled={currentServicesPage <= 1}
+                      className="px-3 py-1 border rounded disabled:opacity-50 dark:border-gray-600"
+                    >
+                      Prev
+                    </button>
+                    <button
+                      onClick={() => setServicesPage(p => Math.min(totalServicePages, p + 1))}
+                      disabled={currentServicesPage >= totalServicePages}
+                      className="px-3 py-1 border rounded disabled:opacity-50 dark:border-gray-600"
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -809,19 +964,41 @@ export default function Admin() {
                   </h2>
                 </div>
                 <div className="p-4">
+                  {/* Users filter and page size */}
+                  <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2">
+                    <input
+                      type="text"
+                      value={usersSearch}
+                      onChange={(e) => setUsersSearch(e.target.value)}
+                      placeholder="Filter users by username or email"
+                      className="w-full sm:max-w-xs px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-sm"
+                    />
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm text-gray-600 dark:text-gray-300">Page size</label>
+                      <select
+                        value={usersPageSize}
+                        onChange={(e) => setUsersPageSize(Number(e.target.value))}
+                        className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-sm"
+                      >
+                        {[5,10,20,50,100].map(n => (
+                          <option key={n} value={n}>{n}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                   <div className="space-y-4">
-                    {(users || []).map((user) => (
+                    {pagedUsers.map((user) => (
                       <div key={user.username} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                          <div className="min-w-0">
+                            <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white truncate">
                               {user.username}
                             </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {user.email} • {user.role} • {user.credits} total credits • {user.services.length} subscriptions
+                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 break-words">
+                              {user.email} • {user.role} • {user.credits} credits • {user.services_count} subs
                             </p>
                           </div>
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          <span className={`self-start sm:self-auto px-2 py-0.5 rounded text-[10px] sm:text-xs font-medium ${
                             user.role === 'admin'
                               ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
                               : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
@@ -871,11 +1048,35 @@ export default function Admin() {
                       </div>
                     ))}
                   </div>
+                  {/* Users pagination */}
+                  <div className="mt-4 flex items-center justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-300">Page {currentUsersPage} of {totalUserPages} • {usersTotal} items</span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setUsersPage(p => Math.max(1, p - 1))}
+                        disabled={currentUsersPage <= 1}
+                        className="px-3 py-1 border rounded disabled:opacity-50 dark:border-gray-600"
+                      >
+                        Prev
+                      </button>
+                      <button
+                        onClick={() => setUsersPage(p => Math.min(totalUserPages, p + 1))}
+                        disabled={currentUsersPage >= totalUserPages}
+                        className="px-3 py-1 border rounded disabled:opacity-50 dark:border-gray-600"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* User Subscriptions Panel */}
-              {userSubs && (
+            </div>
+          </div>
+        )}
+
+        {/* User Subscriptions Panel */}
+        {userSubs && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 mt-6">
                   <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -970,11 +1171,8 @@ export default function Admin() {
                     )}
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
         )}
-
+        
         {/* Credits Tab */}
         {activeTab === 'credits' && (
           <div className="space-y-6">

@@ -42,7 +42,7 @@ app.include_router(admin.router, tags=["Admin"])
 async def startup_db_client():
     """Initialize SQL database with sample data if needed"""
     try:
-        initialize_database()
+        await initialize_database()
         logger.info("Database initialized with sample data")
     except Exception as e:
         logger.warning(f"Could not initialize database with sample data: {e}")

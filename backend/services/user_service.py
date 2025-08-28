@@ -7,17 +7,21 @@ from core.config import settings
 from fastapi import HTTPException
 from datetime import timedelta
 import logging
+from sqlalchemy import select
+from sqlalchemy import or_
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
-def create_user(user: UserCreate):
+async def create_user(user: UserCreate, db: AsyncSession  = None):
     """Create a new user"""
     try:
-        db = SessionLocal()
-        try:
-            if db.query(UserModel).filter(UserModel.username == user.username).first():
+        async with (db or SessionLocal()) as _db:
+            existing = await db.execute(select(UserModel).where(UserModel.username == user.username))
+            if existing.scalars().first() is not None:
                 raise HTTPException(status_code=400, detail="Username already registered")
-            if db.query(UserModel).filter(UserModel.email == user.email).first():
+            existing = await db.execute(select(UserModel).where(UserModel.email == user.email))
+            if existing.scalars().first() is not None:
                 raise HTTPException(status_code=400, detail="Email already registered")
 
             hashed_password = get_password_hash(user.password)
@@ -43,41 +47,40 @@ def create_user(user: UserCreate):
                     }
                 },
             )
-            db.add(new_user)
-            db.commit()
+            _db.add(new_user)
+            await _db.commit()
             return {"message": "User created successfully"}
-        finally:
-            db.close()
     except Exception as e:
         logger.error(f"Error creating user: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-def authenticate_user(email: str, password: str):
+async def authenticate_user(email: str, password: str, db: AsyncSession  = None):
     """Authenticate user and return user data"""
     try:
-        db = SessionLocal()
-        try:
-            user = db.query(UserModel).filter(UserModel.email == email).first()
+        async with (db or SessionLocal()) as _db:
+            # Accept either email or username in the OAuth2 "username" field
+            result = await _db.execute(
+                select(UserModel).where(
+                    or_(UserModel.email == email, UserModel.username == email)
+                )
+            )
+            user = result.scalars().first()
             if not user:
                 return None
             if not verify_password(password, user.hashed_password):
                 return None
             return user
-        finally:
-            db.close()
     except Exception as e:
         logger.error(f"Error authenticating user: {e}")
         return None
 
-def login_user(email: str, password: str):
+async def login_user(email: str, password: str, db: AsyncSession  = None):
     """Login user and return tokens"""
     try:
-        user = authenticate_user(email, password)
-        print(user)
+        user = await authenticate_user(email, password, db=db)
         if not user:
             raise HTTPException(status_code=401, detail="Incorrect username or password")
         
-        # Create tokens
         access_token = create_access_token(
             data={"sub": user.username, "email": user.email, "user_id": (user.user_id or user.username), "role": user.role},
             expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -87,13 +90,9 @@ def login_user(email: str, password: str):
             data={"sub": user.username},
         )
 
-        # Store refresh token
-        db = SessionLocal()
-        try:
-            db.add(RefreshToken(username=user.username, token=refresh_token))
-            db.commit()
-        finally:
-            db.close()
+        async with (db or SessionLocal()) as _db:
+            _db.add(RefreshToken(username=user.username, token=refresh_token))
+            await _db.commit()
         
         return {
             "access_token": access_token,
@@ -110,12 +109,12 @@ def login_user(email: str, password: str):
         logger.error(f"Error logging in user: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-def get_user_profile(username: str):
+async def get_user_profile(username: str, db: AsyncSession  = None):
     """Get user profile"""
     try:
-        db = SessionLocal()
-        try:
-            user = db.query(UserModel).filter(UserModel.username == username).first()
+        async with (db or SessionLocal()) as _db:
+            result = await _db.execute(select(UserModel).where(UserModel.username == username))
+            user = result.scalars().first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
             return {
@@ -126,62 +125,59 @@ def get_user_profile(username: str):
                 "btc_address": user.btc_address,
                 "profile": user.profile or {},
             }
-        finally:
-            db.close()
     except Exception as e:
         logger.error(f"Error getting user profile: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-def update_user_profile(username: str, user_update: UserUpdate):
+async def update_user_profile(username: str, user_update: UserUpdate, db: AsyncSession  = None):
     """Update user profile"""
     try:
-        db = SessionLocal()
-        try:
-            user = db.query(UserModel).filter(UserModel.username == username).first()
+        async with (db or SessionLocal()) as _db:
+            result = await _db.execute(select(UserModel).where(UserModel.username == username))
+            user = result.scalars().first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
 
             if user_update.email and user_update.email != user.email:
-                if db.query(UserModel).filter(UserModel.email == user_update.email, UserModel.username != username).first():
+                result = await _db.execute(
+                    select(UserModel).where(UserModel.email == user_update.email, UserModel.username != username)
+                )
+                if result.scalars().first():
                     raise HTTPException(status_code=400, detail="Email already registered")
                 user.email = user_update.email
 
             if user_update.password:
                 user.hashed_password = get_password_hash(user_update.password)
 
-            db.commit()
+            await _db.commit()
             return {"message": "Profile updated successfully"}
-        finally:
-            db.close()
     except Exception as e:
         logger.error(f"Error updating user profile: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-def change_password(username: str, password_request: ChangePasswordRequest):
+async def change_password(username: str, password_request: ChangePasswordRequest, db: AsyncSession  = None):
     """Change user password"""
     try:
-        db = SessionLocal()
-        try:
-            user = db.query(UserModel).filter(UserModel.username == username).first()
+        async with (db or SessionLocal()) as _db:
+            result = await _db.execute(select(UserModel).where(UserModel.username == username))
+            user = result.scalars().first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
             if not verify_password(password_request.current_password, user.hashed_password):
                 raise HTTPException(status_code=400, detail="Current password is incorrect")
             user.hashed_password = get_password_hash(password_request.new_password)
-            db.commit()
+            await _db.commit()
             return {"message": "Password changed successfully"}
-        finally:
-            db.close()
     except Exception as e:
         logger.error(f"Error changing password: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-def get_user_by_username(username: str):
+async def get_user_by_username(username: str, db: AsyncSession  = None):
     """Get user by username"""
     try:
-        db = SessionLocal()
-        try:
-            user = db.query(UserModel).filter(UserModel.username == username).first()
+        async with (db or SessionLocal()) as _db:
+            result = await _db.execute(select(UserModel).where(UserModel.username == username))
+            user = result.scalars().first()
             if not user:
                 return None
             return User(
@@ -193,8 +189,6 @@ def get_user_by_username(username: str):
                 credits=user.credits,
                 btc_address=user.btc_address or "",
             )
-        finally:
-            db.close()
     except Exception as e:
         logger.error(f"Error getting user by username: {e}")
-        return None 
+        return None

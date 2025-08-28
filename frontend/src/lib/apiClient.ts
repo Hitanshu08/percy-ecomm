@@ -396,12 +396,16 @@ export async function addCredits(username: string, credits: number, serviceId?: 
   });
 }
 
-export async function getAdminServices() {
-  return apiCall(`${API_URL}/admin/services`);
+export async function getAdminServices(page: number = 1, size: number = 20, search?: string) {
+  const params = new URLSearchParams({ page: String(page), size: String(size) });
+  if (search && search.trim()) params.append('search', search.trim());
+  return apiCall(`${API_URL}/admin/services?${params.toString()}`);
 }
 
-export async function getAdminUsers() {
-  return apiCall(`${API_URL}/admin/users`);
+export async function getAdminUsers(page: number = 1, size: number = 20, search?: string) {
+  const params = new URLSearchParams({ page: String(page), size: String(size) });
+  if (search && search.trim()) params.append('search', search.trim());
+  return apiCall(`${API_URL}/admin/users?${params.toString()}`);
 }
 
 export async function purchaseSubscription(serviceName: string, duration: string) {

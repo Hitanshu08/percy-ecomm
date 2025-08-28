@@ -5,12 +5,16 @@ from passlib.context import CryptContext
 from fastapi import HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from core.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# OAuth2 scheme
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+# OAuth2 scheme (used by OpenAPI 'Authorize' button')
+# Routers are included without a global prefix, so the login path is '/login'.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash"""
@@ -48,7 +52,8 @@ def verify_token(token: str) -> Optional[dict]:
         if username is None:
             return None
         return payload
-    except JWTError:
+    except JWTError as e:
+        logger.warning(f"JWT decode failed: {e}")
         return None
 
 def get_current_user_from_token(token: str) -> Optional[str]:

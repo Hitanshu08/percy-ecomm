@@ -3,7 +3,8 @@ import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { changePassword, getMe } from "../lib/apiClient";
 import { Button, Input } from "../components/ui";
-import { Modal } from "../components/feedback";
+import Spinner from "../components/feedback/Spinner";
+import Panel from "../components/layout/Panel";
 
 interface UserData {
   username: string;
@@ -105,14 +106,12 @@ export default function UserPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
+      <Spinner />
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+    <div className="flex-1 bg-gray-50 dark:bg-gray-900 py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
@@ -136,13 +135,7 @@ export default function UserPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Profile Information */}
           <div className="lg:col-span-2">
-            <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                  Profile Information
-                </h3>
-              </div>
-              <div className="px-6 py-4">
+            <Panel title={<span className="text-lg font-medium">Profile Information</span>} bodyClassName="px-2 sm:px-2">
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -181,25 +174,18 @@ export default function UserPage() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                         Bitcoin Address
                       </label>
-                      <p className="mt-1 text-sm text-gray-900 dark:text-white font-mono">
+                      <p className="mt-1 text-sm text-gray-900 dark:text-white font-mono break-all">
                         {userData.btc_address}
                       </p>
                     </div>
                   )}
                 </div>
-              </div>
-            </div>
+            </Panel>
           </div>
 
           {/* Security Settings */}
           <div className="lg:col-span-1">
-            <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                  Security
-                </h3>
-              </div>
-              <div className="px-6 py-4">
+            <Panel title={<span className="text-lg font-medium">Security</span>} bodyClassName="px-2 sm:px-2">
                 <Button
                   onClick={() => setShowPasswordModal(true)}
                   variant="primary"
@@ -210,8 +196,7 @@ export default function UserPage() {
                   </svg>
                   Change Password
                 </Button>
-              </div>
-            </div>
+            </Panel>
           </div>
         </div>
 

@@ -1,15 +1,11 @@
 import React from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 
-interface TermsAndConditionsProps {
-  onBack: () => void;
-}
-
-export default function TermsAndConditions({ onBack }: TermsAndConditionsProps) {
+export default function TermsAndConditions() {
   const { theme } = useTheme();
 
   return (
-    <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
+    <div className={`flex-1 ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
