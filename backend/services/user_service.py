@@ -7,9 +7,9 @@ from core.config import settings
 from fastapi import HTTPException
 from datetime import timedelta
 import logging
-from sqlalchemy import select
-from sqlalchemy import or_
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+from utils.timing import timeit
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +17,10 @@ async def create_user(user: UserCreate, db: AsyncSession  = None):
     """Create a new user"""
     try:
         async with (db or SessionLocal()) as _db:
-            existing = await db.execute(select(UserModel).where(UserModel.username == user.username))
+            existing = await _db.execute(select(UserModel).where(UserModel.username == user.username))
             if existing.scalars().first() is not None:
                 raise HTTPException(status_code=400, detail="Username already registered")
-            existing = await db.execute(select(UserModel).where(UserModel.email == user.email))
+            existing = await _db.execute(select(UserModel).where(UserModel.email == user.email))
             if existing.scalars().first() is not None:
                 raise HTTPException(status_code=400, detail="Email already registered")
 
@@ -50,6 +50,9 @@ async def create_user(user: UserCreate, db: AsyncSession  = None):
             _db.add(new_user)
             await _db.commit()
             return {"message": "User created successfully"}
+    except HTTPException:
+        # Propagate intended HTTP errors (e.g., 400 for duplicates)
+        raise
     except Exception as e:
         logger.error(f"Error creating user: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -109,6 +112,7 @@ async def login_user(email: str, password: str, db: AsyncSession  = None):
         logger.error(f"Error logging in user: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@timeit("get_user_profile")
 async def get_user_profile(username: str, db: AsyncSession  = None):
     """Get user profile"""
     try:

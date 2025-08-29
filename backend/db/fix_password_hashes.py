@@ -1,4 +1,4 @@
-from db.session import SessionLocal
+from db.session import get_db_session
 from db.models.user import User as UserModel
 import re
 
@@ -8,7 +8,7 @@ def is_bcrypt_hash(s):
 
 def fix_password_hashes():
     from core.security import get_password_hash  # moved here to avoid circular import
-    db = SessionLocal()
+    db = get_db_session()
     updated = 0
     try:
         for user in db.query(UserModel).all():

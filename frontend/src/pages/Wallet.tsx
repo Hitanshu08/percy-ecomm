@@ -9,7 +9,6 @@ import { WalletCard } from '../features/wallet/components';
 
 interface WalletData {
   credits: number;
-  btc_address: string;
 }
 
 export default function Wallet() {

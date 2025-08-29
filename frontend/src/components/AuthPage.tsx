@@ -15,7 +15,7 @@ export default function AuthPage() {
       case 'signup':
         return (
           <SignupForm
-            onSuccess={() => {}} // No longer needed, but keeping for compatibility
+            onSuccess={() => setMode('login')}
             onSwitchToLogin={() => setMode('login')}
           />
         );

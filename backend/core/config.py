@@ -1,12 +1,11 @@
-import os
 from pydantic_settings import BaseSettings
-from typing import Optional, List
+from typing import List
 
 class Settings(BaseSettings):
     # App settings
     APP_NAME: str = "Valuesubs E-commerce API"
     VERSION: str = "1.0.0"
-    DEBUG: bool = False
+    DEBUG: bool = True
     
     # Security settings
     SECRET_KEY: str

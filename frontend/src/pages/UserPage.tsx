@@ -11,7 +11,6 @@ interface UserData {
   email: string;
   role: string;
   credits: number;
-  btc_address: string;
 }
 
 export default function UserPage() {
@@ -169,16 +168,7 @@ export default function UserPage() {
                       {userData?.credits?.toLocaleString() || '0'} credits
                     </p>
                   </div>
-                  {userData?.btc_address && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Bitcoin Address
-                      </label>
-                      <p className="mt-1 text-sm text-gray-900 dark:text-white font-mono break-all">
-                        {userData.btc_address}
-                      </p>
-                    </div>
-                  )}
+                  
                 </div>
             </Panel>
           </div>

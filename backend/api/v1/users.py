@@ -1,37 +1,51 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from schemas.user_schema import User as UserSchema, UserCreate, ChangePasswordRequest
 from api.dependencies import get_current_user
 from db.session import get_db_session
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.session import get_db_session
 from sqlalchemy.ext.asyncio import AsyncSession
-import asyncio
 from services.user_service import change_password, get_user_profile, create_user
+from sqlalchemy import select
+from db.models.user import User as UserModel
 from services.service_service import get_user_subscriptions
 from utils.responses import no_store_json
+from utils.timing import timeit
 
 router = APIRouter()
 
+@timeit()
 @router.post("/signup", response_model=dict)
 async def signup(user: UserCreate, db: AsyncSession = Depends(get_db_session)):
     return await create_user(user, db)
 
+@timeit()
+@router.get("/check-username")
+async def check_username(username: str, db: AsyncSession = Depends(get_db_session)):
+    result = await db.execute(select(UserModel).where(UserModel.username == username))
+    exists = result.scalars().first() is not None
+    return {"available": not exists}
+
+@timeit()
 @router.get("/me", response_model=UserSchema)
 async def read_users_me(current_user: UserSchema = Depends(get_current_user), db: AsyncSession = Depends(get_db_session)):
-    return no_store_json(await get_user_profile(current_user.username, db))
+    # Avoid redundant DB call; dependency already validated user. Convert to dict for JSONResponse.
+    return no_store_json(current_user.model_dump())
 
+@timeit()
 @router.post("/change-password")
 async def change_password_endpoint(data: ChangePasswordRequest, current_user: UserSchema = Depends(get_current_user), db: AsyncSession = Depends(get_db_session)):
     return no_store_json(await change_password(current_user.username, data, db))
 
+@timeit()
 @router.get("/user/subscriptions/current")
 async def get_user_current_subscriptions(current_user: UserSchema = Depends(get_current_user), db: AsyncSession = Depends(get_db_session)):
     return no_store_json(await get_user_subscriptions(current_user, db))
 
+@timeit("get_dashboard")
 @router.get("/dashboard")
 async def get_dashboard(current_user: UserSchema = Depends(get_current_user), db: AsyncSession = Depends(get_db_session)):
-    # Reuse the same session for both calls (sequential to avoid concurrent session use)
-    profile = await get_user_profile(current_user.username, db)
+    # Use JWT data for credits; fetch only subscriptions
     subs_resp = await get_user_subscriptions(current_user, db)
     subscriptions = subs_resp.get("subscriptions", [])
     active_subs = [sub for sub in subscriptions if sub.get("is_active")]
@@ -47,9 +61,8 @@ async def get_dashboard(current_user: UserSchema = Depends(get_current_user), db
         }
         for sub in recent_subs
     ]
-
     return no_store_json({
-        "credits": profile.get("credits"),
+        "credits": current_user.credits,
         "active_subscriptions": len(active_subs),
         "recent_subscriptions": recent_min
     })

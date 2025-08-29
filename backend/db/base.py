@@ -1,8 +1,4 @@
-from core.security import get_password_hash
-from core.config import settings
 from db.session import Base, engine
-from db.models.user import User
-from db.models.service import Service
 import logging
 from sqlalchemy.ext.asyncio import AsyncEngine
 

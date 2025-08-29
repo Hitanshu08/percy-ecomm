@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { signup } from '../../../lib/apiClient';
+import { signup, checkUsername } from '../../../lib/apiClient';
 import Input from '../../../components/ui/Input';
 import Button from '../../../components/ui/Button';
 
@@ -20,6 +20,8 @@ export default function SignupForm({ onSuccess, onSwitchToLogin }: SignupFormPro
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [usernameAvailable, setUsernameAvailable] = useState<null | boolean>(null);
+  const [checkingUsername, setCheckingUsername] = useState(false);
   const { theme } = useTheme();
 
   const validateForm = () => {
@@ -96,6 +98,25 @@ export default function SignupForm({ onSuccess, onSwitchToLogin }: SignupFormPro
     }
   };
 
+  // Debounced username availability check
+  useEffect(() => {
+    const val = formData.username.trim();
+    setUsernameAvailable(null);
+    if (!val || val.length < 3) return;
+    setCheckingUsername(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await checkUsername(val);
+        setUsernameAvailable(res.available);
+      } catch {
+        setUsernameAvailable(null);
+      } finally {
+        setCheckingUsername(false);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [formData.username]);
+
   return (
     <div className={`w-full max-w-md mx-auto ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>
       <div className={`p-8 rounded-lg shadow-lg ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
@@ -108,14 +129,27 @@ export default function SignupForm({ onSuccess, onSwitchToLogin }: SignupFormPro
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Username Field */}
-          <Input
-            type="text"
-            label="Username"
-            value={formData.username}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('username', e.target.value)}
-            placeholder="Choose a username"
-            error={errors.username}
-          />
+          <div className="space-y-1">
+            <Input
+              type="text"
+              label="Username"
+              value={formData.username}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('username', e.target.value)}
+              placeholder="Choose a username"
+              error={errors.username}
+            />
+            {formData.username && formData.username.length >= 3 && (
+              <div className="text-sm mt-2s">
+                {checkingUsername ? (
+                  <span className="text-gray-500">Checking availability…</span>
+                ) : usernameAvailable === false ? (
+                  <span className="text-red-600">Username {formData.username} is taken</span>
+                ) : usernameAvailable === true ? (
+                      <span className="text-green-600">Username {formData.username} is available</span>
+                ) : null}
+              </div>
+            )}
+          </div>
 
           {/* Email Field */}
           <Input

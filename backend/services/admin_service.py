@@ -1,6 +1,6 @@
 from schemas.user_schema import AdminAssignSubscription, AdminAddCredits, AdminRemoveCredits, AdminRemoveSubscription, AdminUpdateSubscriptionEndDate, User, AdminUpdateSubscriptionActive
 from config import config
-from db.session import SessionLocal
+from db.session import get_db_session
 from db.models.user import User as UserModel
 from db.models.service import Service as ServiceModel
 from fastapi import HTTPException
@@ -13,7 +13,7 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
     """Assign subscription to user"""
     try:
         logger.info(f"Assigning subscription to user: {request.username}, service: {request.service_name}, duration: {request.duration}")
-        db = SessionLocal()
+        db = get_db_session()
         try:
             user = db.query(UserModel).filter(UserModel.username == request.username).first()
             if not user:
@@ -229,7 +229,7 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
 def add_credits_to_user(request: AdminAddCredits, current_user: User):
     """Add credits to a user or specific subscription"""
     try:
-        db = SessionLocal()
+        db = get_db_session()
         try:
             user = db.query(UserModel).filter(UserModel.username == request.username).first()
             if not user:
@@ -270,7 +270,7 @@ def add_credits_to_user(request: AdminAddCredits, current_user: User):
 def remove_credits_from_user(request: AdminRemoveCredits, current_user: User):
     """Remove credits from a user or specific subscription"""
     try:
-        db = SessionLocal()
+        db = get_db_session()
         try:
             user = db.query(UserModel).filter(UserModel.username == request.username).first()
             if not user:
@@ -311,7 +311,7 @@ def remove_credits_from_user(request: AdminRemoveCredits, current_user: User):
 def remove_user_subscription(request: AdminRemoveSubscription, current_user: User):
     """Remove a subscription from a user by service_id (account id)"""
     try:
-        db = SessionLocal()
+        db = get_db_session()
         try:
             user = db.query(UserModel).filter(UserModel.username == request.username).first()
             if not user:
@@ -336,7 +336,7 @@ def remove_user_subscription(request: AdminRemoveSubscription, current_user: Use
 def update_user_subscription_end_date(request: AdminUpdateSubscriptionEndDate, current_user: User):
     """Update the end date of a user's subscription (expects dd/mm/yyyy)"""
     try:
-        db = SessionLocal()
+        db = get_db_session()
         try:
             user = db.query(UserModel).filter(UserModel.username == request.username).first()
             if not user:
@@ -370,7 +370,7 @@ def update_user_subscription_end_date(request: AdminUpdateSubscriptionEndDate, c
 def update_user_subscription_active(request: AdminUpdateSubscriptionActive, current_user: User):
     """Admin: Update is_active flag for a user's subscription by service/account id"""
     try:
-        db = SessionLocal()
+        db = get_db_session()
         try:
             user = db.query(UserModel).filter(UserModel.username == request.username).first()
             if not user:
@@ -399,7 +399,7 @@ def update_user_subscription_active(request: AdminUpdateSubscriptionActive, curr
 def get_all_users(current_user: User, page: int = 1, size: int = 20, search: str = None):
     """Get paginated users (admin only) with per-subscription credits"""
     try:
-        db = SessionLocal()
+        db = get_db_session()
         try:
             q = db.query(UserModel)
             if search:
@@ -431,7 +431,7 @@ def get_all_users(current_user: User, page: int = 1, size: int = 20, search: str
 def get_all_admin_services(current_user: User, page: int = 1, size: int = 20, search: str = None):
     """Get paginated services for admin"""
     try:
-        db = SessionLocal()
+        db = get_db_session()
         try:
             q = db.query(ServiceModel)
             if search:
@@ -459,7 +459,7 @@ def get_all_admin_services(current_user: User, page: int = 1, size: int = 20, se
 def update_service_credits(service_name: str, credits_map: dict, current_user: User):
     """Update per-duration credits for a service in config"""
     try:
-        db = SessionLocal()
+        db = get_db_session()
         try:
             svc = db.query(ServiceModel).filter(ServiceModel.name == service_name).first()
             if not svc:
@@ -476,7 +476,7 @@ def update_service_credits(service_name: str, credits_map: dict, current_user: U
 def get_service_credits_admin(service_name: str, current_user: User):
     """Get per-duration credits for a service from config"""
     try:
-        db = SessionLocal()
+        db = get_db_session()
         try:
             svc = db.query(ServiceModel).filter(ServiceModel.name == service_name).first()
             if not svc:
@@ -494,7 +494,7 @@ def add_service(service_data: dict, current_user: User):
         service_name = service_data.get("name")
         if not service_name:
             raise HTTPException(status_code=400, detail="Service name is required")
-        db = SessionLocal()
+        db = get_db_session()
         try:
             existing_service = db.query(ServiceModel).filter(ServiceModel.name == service_name).first()
             if existing_service:
@@ -516,7 +516,7 @@ def add_service(service_data: dict, current_user: User):
 def update_service(service_name: str, service_data: dict, current_user: User):
     """Update a service"""
     try:
-        db = SessionLocal()
+        db = get_db_session()
         try:
             existing_service = db.query(ServiceModel).filter(ServiceModel.name == service_name).first()
             if not existing_service:
@@ -537,7 +537,7 @@ def update_service(service_name: str, service_data: dict, current_user: User):
 def delete_service(service_name: str, current_user: User):
     """Delete a service and remove it from all users' subscriptions"""
     try:
-        db = SessionLocal()
+        db = get_db_session()
         try:
             service = db.query(ServiceModel).filter(ServiceModel.name == service_name).first()
             if not service:
@@ -585,7 +585,7 @@ def delete_service(service_name: str, current_user: User):
 def get_service_details(service_name: str, current_user: User):
     """Get detailed information about a specific service"""
     try:
-        db = SessionLocal()
+        db = get_db_session()
         try:
             service = db.query(ServiceModel).filter(ServiceModel.name == service_name).first()
             if not service:
@@ -606,7 +606,7 @@ def get_service_details(service_name: str, current_user: User):
 def get_user_subscriptions_admin(username: str, current_user: User):
     """Admin: Get subscriptions for a specific user by username"""
     try:
-        db = SessionLocal()
+        db = get_db_session()
         try:
             user = db.query(UserModel).filter(UserModel.username == username).first()
             if not user:

@@ -1,5 +1,7 @@
 from schemas.user_schema import User, CreditDeposit
 from db.session import SessionLocal
+from db.models.subscription import UserSubscription
+from db.models.service import Service as ServiceModel
 from db.models.user import User as UserModel
 from fastapi import HTTPException
 import logging
@@ -16,13 +18,15 @@ async def get_wallet_info(current_user: User):
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
             subscription_details = []
-            if user.services and isinstance(user.services, list):
-                for subscription in user.services:
-                    subscription_details.append({
-                        "service_id": subscription.get("service_id"),
-                        "is_active": subscription.get("is_active", True),
-                        "end_date": subscription.get("end_date")
-                    })
+            subs = (await db.execute(select(UserSubscription).where(UserSubscription.user_id == user.id))).scalars().all()
+            for sub in subs:
+                svc = (await db.execute(select(ServiceModel).where(ServiceModel.id == sub.service_id))).scalars().first()
+                subscription_details.append({
+                    "service_id": sub.service_id,
+                    "service_name": svc.name if svc else "",
+                    "is_active": bool(sub.is_active),
+                    "end_date": sub.end_date.strftime("%d/%m/%Y") if sub.end_date else ""
+                })
             return {
                 "credits": user.credits,
                 "subscription_details": subscription_details,

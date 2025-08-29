@@ -238,6 +238,19 @@ export async function signup(username: string, email: string, password: string) 
   return handle(response);
 }
 
+export async function checkUsername(username: string): Promise<{ available: boolean }> {
+  const url = `${API_URL}/check-username?username=${encodeURIComponent(username)}`;
+  const res = await fetch(url, {
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    }
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function login(email: string, password: string) {
   const formData = new URLSearchParams();
   formData.append('username', email);
