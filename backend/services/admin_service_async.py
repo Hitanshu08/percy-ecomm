@@ -324,9 +324,19 @@ async def get_all_users(current_user: User, page: int = 1, size: int = 20, searc
             result = await db.execute(q.offset((page - 1) * size).limit(size))
             items = result.scalars().all()
             users = []
+            if items:
+                user_ids = [u.id for u in items]
+                # Batch count subscriptions per user for current page
+                counts_rows = await db.execute(
+                    select(UserSubscription.user_id, func.count(UserSubscription.id))
+                    .where(UserSubscription.user_id.in_(user_ids))
+                    .group_by(UserSubscription.user_id)
+                )
+                counts_map = {row[0]: int(row[1]) for row in counts_rows.all()}
+            else:
+                counts_map = {}
             for user in items:
-                # count subscriptions from normalized table
-                subs_count = (await db.execute(select(func.count(UserSubscription.id)).where(UserSubscription.user_id == user.id))).scalar() or 0
+                subs_count = counts_map.get(user.id, 0)
                 users.append({
                     "username": user.username,
                     "email": user.email,
@@ -358,9 +368,20 @@ async def get_all_admin_services(current_user: User, page: int = 1, size: int = 
             result = await db.execute(q.offset((page - 1) * size).limit(size))
             items = result.scalars().all()
             services = []
+            if items:
+                service_ids = [s.id for s in items]
+                # Batch fetch accounts for current page of services
+                acc_rows_result = await db.execute(
+                    select(ServiceAccount).where(ServiceAccount.service_id.in_(service_ids))
+                )
+                acc_rows = acc_rows_result.scalars().all()
+                accounts_by_service: dict[int, list[ServiceAccount]] = {}
+                for acc in acc_rows:
+                    accounts_by_service.setdefault(acc.service_id, []).append(acc)
+            else:
+                accounts_by_service = {}
             for service in items:
-                # Build accounts list from normalized table and exclude end_date/password
-                acc_rows = (await db.execute(select(ServiceAccount).where(ServiceAccount.service_id == service.id))).scalars().all()
+                acc_rows = accounts_by_service.get(service.id, [])
                 sanitized_accounts = [{"id": acc.account_id, "is_active": bool(acc.is_active)} for acc in acc_rows]
                 services.append({
                     "name": service.name,

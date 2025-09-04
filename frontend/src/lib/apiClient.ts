@@ -34,46 +34,54 @@ function isTokenExpired(token: string): boolean {
   }
 }
 
+let refreshPromise: Promise<string | null> | null = null;
+
 // Refresh access token
 async function refreshAccessToken(): Promise<string | null> {
-  try {
-    const refreshToken = localStorage.getItem('refreshToken');
-    if (!refreshToken) {
-      return null;
-    }
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    try {
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (!refreshToken) {
+        return null;
+      }
 
-    const response = await fetch(`${API_URL}/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      },
-      body: JSON.stringify({
-        refresh_token: refreshToken
-      })
-    });
+      const response = await fetch(`${API_URL}/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        body: JSON.stringify({
+          refresh_token: refreshToken
+        })
+      });
 
-    if (response.ok) {
-      const data = await response.json();
-      const newAccessToken = data.access_token;
-      localStorage.setItem('token', newAccessToken);
-      return newAccessToken;
-    } else {
-      // Refresh token is invalid, clear all tokens
+      if (response.ok) {
+        const data = await response.json();
+        const newAccessToken = data.access_token;
+        localStorage.setItem('token', newAccessToken);
+        return newAccessToken;
+      } else {
+        // Refresh token is invalid, clear all tokens
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        return null;
+      }
+    } catch (error) {
+      console.error('Error refreshing token:', error);
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
       return null;
+    } finally {
+      refreshPromise = null;
     }
-  } catch (error) {
-    console.error('Error refreshing token:', error);
-    localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
-    return null;
-  }
+  })();
+  return refreshPromise;
 }
 
 // Get valid token (refresh if needed)
@@ -152,14 +160,9 @@ async function authHeadersFormData(): Promise<Record<string, string>> {
 
 async function handle(res: Response) {
   if (res.status === 401) {
-    // Try to refresh token on 401
+    // Try to refresh token on 401 once, but don't redirect here
     const newToken = await refreshAccessToken();
     if (!newToken) {
-      // Refresh failed, redirect to login
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
-      window.location.href = '/auth';
       throw new Error("Authentication failed");
     }
     throw new Error("Token refreshed, retry request");
@@ -189,7 +192,7 @@ export async function apiCall<T>(url: string, options: RequestInit = {}): Promis
   });
 
   if (response.status === 401) {
-    // Try to refresh token
+    // Try to refresh token, coalesced
     const newToken = await refreshAccessToken();
     if (newToken) {
       // Retry the request with new token
@@ -203,6 +206,13 @@ export async function apiCall<T>(url: string, options: RequestInit = {}): Promis
       });
       
       if (!retryResponse.ok) {
+        if (retryResponse.status === 401) {
+          // Final auth failure; clear and redirect
+          localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
+          window.location.href = '/auth';
+        }
         throw new Error(await retryResponse.text());
       }
       

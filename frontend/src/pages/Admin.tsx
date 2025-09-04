@@ -100,28 +100,58 @@ export default function Admin() {
   // Service credit preview
   const [serviceCreditPreview, setServiceCreditPreview] = useState<number | null>(null);
 
+  // Load saved pagination from localStorage
+  useEffect(() => {
+    const sPage = Number(localStorage.getItem('admin_services_page') || 1);
+    const sSize = Number(localStorage.getItem('admin_services_page_size') || 5);
+    const uPage = Number(localStorage.getItem('admin_users_page') || 1);
+    const uSize = Number(localStorage.getItem('admin_users_page_size') || 5);
+    if (sPage) setServicesPage(sPage);
+    if (sSize) setServicesPageSize(sSize);
+    if (uPage) setUsersPage(uPage);
+    if (uSize) setUsersPageSize(uSize);
+    console.log('Loaded pagination from localStorage...', sPage, sSize, uPage, uSize);
+  }, []);
+
   useEffect(() => {
     const init = async () => {
       try {
         setLoading(true);
-        await Promise.all([fetchServices(false), fetchUsers(false)]);
+        // Use latest state by reading from localStorage at init to avoid stale closure
+        const sPage = Number(localStorage.getItem('admin_services_page') || 1);
+        const sSize = Number(localStorage.getItem('admin_services_page_size') || 5);
+        const uPage = Number(localStorage.getItem('admin_users_page') || 1);
+        const uSize = Number(localStorage.getItem('admin_users_page_size') || 5);
+        console.log('Fetching services and users (init)...', sPage, sSize, uPage, uSize);
+        await Promise.all([
+          getAdminServices(sPage || servicesPage, sSize || servicesPageSize, servicesSearch).then((servicesData: any) => {
+            const sPayload: any = servicesData;
+            setServices((sPayload as any).services || (sPayload as any) || []);
+            setServicesTotal(typeof sPayload.total === 'number' ? sPayload.total : (sPayload.services ? sPayload.services.length : 0));
+            setServicesTotalPages(typeof sPayload.total_pages === 'number' ? sPayload.total_pages : 1);
+          }).catch((e) => {
+            console.error('Error fetching services (init):', e);
+            setServices([]);
+            setServicesTotal(0);
+            setServicesTotalPages(1);
+          }),
+          getAdminUsers(uPage || usersPage, uSize || usersPageSize, usersSearch).then((usersData: any) => {
+            const uPayload: any = usersData;
+            setUsers((uPayload as any).users || (uPayload as any) || []);
+            setUsersTotal(typeof uPayload.total === 'number' ? uPayload.total : (uPayload.users ? uPayload.users.length : 0));
+            setUsersTotalPages(typeof uPayload.total_pages === 'number' ? uPayload.total_pages : 1);
+          }).catch((e) => {
+            console.error('Error fetching users (init):', e);
+            setUsers([]);
+            setUsersTotal(0);
+            setUsersTotalPages(1);
+          })
+        ]);
       } finally {
         setLoading(false);
       }
     };
     init();
-  }, []);
-
-  // Load saved pagination from localStorage
-  useEffect(() => {
-    const sPage = Number(localStorage.getItem('admin_services_page') || '1');
-    const sSize = Number(localStorage.getItem('admin_services_page_size') || '20');
-    const uPage = Number(localStorage.getItem('admin_users_page') || '1');
-    const uSize = Number(localStorage.getItem('admin_users_page_size') || '20');
-    if (sPage) setServicesPage(sPage);
-    if (sSize) setServicesPageSize(sSize);
-    if (uPage) setUsersPage(uPage);
-    if (uSize) setUsersPageSize(uSize);
   }, []);
 
   // Load saved active tab from localStorage
@@ -220,6 +250,7 @@ export default function Admin() {
         setUsersLoading(true);
         setUsers([]);
       }
+      console.log('Fetching users...', usersPageSize, usersPage, usersSearch);
       const usersData = await getAdminUsers(usersPage, usersPageSize, usersSearch);
       const uPayload: any = usersData;
       setUsers((uPayload as any).users || (uPayload as any) || []);
@@ -486,7 +517,7 @@ export default function Admin() {
 
   React.useEffect(() => {
     setServicesPage(1);
-  }, [servicesSearch, servicesPageSize]);
+  }, [servicesSearch]);
 
   const filteredUsers = users;
 
@@ -494,11 +525,11 @@ export default function Admin() {
   const currentUsersPage = Math.min(usersPage, totalUserPages);
   const pagedUsers = React.useMemo(() => {
     return filteredUsers;
-  }, [filteredUsers]);
+  }, [filteredUsers, currentUsersPage]);
 
   React.useEffect(() => {
     setUsersPage(1);
-  }, [usersSearch, usersPageSize]);
+  }, [usersSearch]);
 
   if (loading) {
     return (
@@ -740,7 +771,7 @@ export default function Admin() {
                     <label className="text-sm text-gray-600 dark:text-gray-300">Page size</label>
                     <select
                       value={servicesPageSize}
-                      onChange={(e) => setServicesPageSize(Number(e.target.value))}
+                      onChange={(e) => { const v = Number(e.target.value); setServicesPageSize(v); setServicesPage(1); }}
                       className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-sm"
                     >
                       {[5,10,20,50,100].map(n => (
@@ -977,7 +1008,7 @@ export default function Admin() {
                       <label className="text-sm text-gray-600 dark:text-gray-300">Page size</label>
                       <select
                         value={usersPageSize}
-                        onChange={(e) => setUsersPageSize(Number(e.target.value))}
+                        onChange={(e) => { const v = Number(e.target.value); setUsersPageSize(v); setUsersPage(1); }}
                         className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-sm"
                       >
                         {[5,10,20,50,100].map(n => (

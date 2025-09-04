@@ -43,3 +43,21 @@ async def admin_required(current_user: UserSchema = Depends(get_current_user)) -
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
+
+# Fast path: trust JWT claims to verify admin role without DB hit
+async def admin_required_fast(token: str = Depends(oauth2_scheme)) -> UserSchema:
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+    role = payload.get("role")
+    if role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return UserSchema(
+        username=payload.get("sub", ""),
+        email=payload.get("email", ""),
+        user_id=payload.get("user_id", ""),
+        role=role,
+        services=[],
+        credits=0,
+        btc_address="",
+    )

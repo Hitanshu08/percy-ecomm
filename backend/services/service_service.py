@@ -57,12 +57,45 @@ async def get_services(current_user: User = None, db: AsyncSession  = None):
                     user_record = None
             result = await _db.execute(select(ServiceModel))
             service_rows = result.scalars().all()
+            service_ids = [s.id for s in service_rows]
+            # Batch fetch active accounts for all services on this page
+            acc_rows = []
+            if service_ids:
+                acc_rows = (await _db.execute(select(ServiceAccount).where(ServiceAccount.service_id.in_(service_ids), ServiceAccount.is_active == True))).scalars().all()
+            accounts_by_service: dict[int, list[ServiceAccount]] = {}
+            for sa in acc_rows:
+                accounts_by_service.setdefault(sa.service_id, []).append(sa)
+            # Batch fetch credits for all services
+            credits_by_service: dict[int, dict[str, int]] = {}
+            if service_ids:
+                sdc_rows = (await _db.execute(select(ServiceDurationCredit).where(ServiceDurationCredit.service_id.in_(service_ids)))).scalars().all()
+                for row in sdc_rows:
+                    svc_map = credits_by_service.setdefault(row.service_id, {})
+                    try:
+                        svc_map[row.duration_key] = int(row.credits)
+                    except Exception:
+                        svc_map[row.duration_key] = 0
+            # Batch fetch user subscriptions for all services for this user
+            latest_user_end_by_service: dict[int, str] = {}
+            if user_record and service_ids:
+                subs_rows = (await _db.execute(select(UserSubscription).where(UserSubscription.user_id == user_record.id, UserSubscription.service_id.in_(service_ids)))).scalars().all()
+                latest_by_service: dict[int, datetime] = {}
+                for sub in subs_rows:
+                    if sub.end_date:
+                        prev = latest_by_service.get(sub.service_id)
+                        if not prev or sub.end_date > prev:
+                            latest_by_service[sub.service_id] = sub.end_date
+                for svc_id, dt_val in latest_by_service.items():
+                    try:
+                        latest_user_end_by_service[svc_id] = dt_val.strftime("%d/%m/%Y")
+                    except Exception:
+                        pass
             for service in service_rows:
                 available_accounts = []
                 max_days_until_expiry = 0
                 max_end_date = ""
-                # Fetch active service accounts from normalized table
-                sa_rows = (await _db.execute(select(ServiceAccount).where(ServiceAccount.service_id == service.id, ServiceAccount.is_active == True))).scalars().all()
+                # Use pre-grouped accounts
+                sa_rows = accounts_by_service.get(service.id, [])
                 for sa in sa_rows:
                     end_dt = sa.end_date
                     if not end_dt:
@@ -81,19 +114,7 @@ async def get_services(current_user: User = None, db: AsyncSession  = None):
                         "days_until_expiry": days_until_expiry,
                         "end_date": (end_dt_dt).strftime("%d/%m/%Y"),
                     })
-                user_end_date = ""
-                if user_record:
-                    # Find latest end_date for this service from normalized subscriptions
-                    subs = (await _db.execute(
-                        select(UserSubscription).where(
-                            UserSubscription.user_id == user_record.id,
-                            UserSubscription.service_id == service.id
-                        )
-                    )).scalars().all()
-                    if subs:
-                        latest_end = max((s.end_date for s in subs if s.end_date), default=None)
-                        if latest_end:
-                            user_end_date = latest_end.strftime("%d/%m/%Y")
+                user_end_date = latest_user_end_by_service.get(service.id, "")
                 services.append({
                     "name": service.name,
                     "image": service.image,
@@ -101,8 +122,8 @@ async def get_services(current_user: User = None, db: AsyncSession  = None):
                     "total_accounts": len(sa_rows),
                     "max_days_until_expiry": max_days_until_expiry,
                     "max_end_date": max_end_date,
-                    # build credits map from normalized table
-                    "credits": {sdc.duration_key: sdc.credits for sdc in (await _db.execute(select(ServiceDurationCredit).where(ServiceDurationCredit.service_id == service.id))).scalars().all()},
+                    # use batched credits map per service
+                    "credits": credits_by_service.get(service.id, {}),
                     "user_end_date": user_end_date,
                 })
         resp = {"services": services}

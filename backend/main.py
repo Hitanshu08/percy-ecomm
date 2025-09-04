@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from api.v1 import auth, users, services, wallet, admin
 from core.config import settings
 from db.base import initialize_database
@@ -15,6 +16,9 @@ app = FastAPI(
     version=settings.VERSION,
     debug=settings.DEBUG
 )
+
+# Add GZip compression for larger JSON payloads
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 NO_STORE_HEADERS = {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
