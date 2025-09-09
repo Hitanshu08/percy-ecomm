@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     DB_POOL_TIMEOUT: int = 10
     
     # CORS settings
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+    ALLOWED_ORIGINS: List[str] = ["http://localhost:5173","https://valuesubs.com"]
     
     # API settings
     API_V1_STR: str = "/api/v1"
@@ -36,6 +36,15 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "DEBUG"
     LOG_DIR: str = "logs"
     LOG_TTL_DAYS: int = 7
+    
+    # SMTP / Email settings
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str | None = None
+    SMTP_PASSWORD: str | None = None
+    SMTP_FROM_EMAIL: str | None = None
+    SMTP_FROM_NAME: str = "Valuesubs"
+    SMTP_USE_TLS: bool = True
     
     class Config:
         env_file = ".env"

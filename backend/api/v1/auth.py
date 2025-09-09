@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from fastapi.security import OAuth2PasswordRequestForm
 from schemas.user_schema import Token
-from services.user_service import login_user
+from services.user_service import login_user, request_password_reset
 from services.service_service import refresh_access_token
 from utils.responses import no_store_json
 from utils.timing import timeit
@@ -17,6 +17,12 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 @router.post("/refresh", response_model=Token)
 async def refresh_token(request: dict):
     return no_store_json(await refresh_access_token(request))
+
+@timeit()
+@router.post("/forgot-password")
+async def forgot_password(payload: dict):
+    email = payload.get("email", "").strip()
+    return no_store_json(await request_password_reset(email))
 
 @timeit()
 @router.get("/health")

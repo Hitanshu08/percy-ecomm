@@ -5,11 +5,14 @@ from db.models.refresh_token import RefreshToken
 from core.security import get_password_hash, verify_password, create_access_token, create_refresh_token
 from core.config import settings
 from fastapi import HTTPException
-from datetime import timedelta
+from datetime import timedelta, datetime
 import logging
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from utils.timing import timeit
+from db.models.password_reset_otp import PasswordResetOTP
+import random
+from utils.email import send_otp_email
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +113,35 @@ async def login_user(email: str, password: str, db: AsyncSession  = None):
         }
     except Exception as e:
         logger.error(f"Error logging in user: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@timeit("request_password_reset")
+async def request_password_reset(email: str, db: AsyncSession = None):
+    """Generate an OTP for password reset and send it via email."""
+    try:
+        async with get_or_use_session(db) as _db:
+            # Check user exists
+            result = await _db.execute(select(UserModel).where(UserModel.email == email))
+            user = result.scalars().first()
+            if not user:
+                # Do not reveal whether the email exists
+                return {"message": "If an account exists, an OTP has been sent"}
+
+            # Generate 6-digit OTP
+            otp_code = f"{random.randint(0, 999999):06d}"
+            expires_at = datetime.utcnow() + timedelta(minutes=10)
+
+            otp = PasswordResetOTP(email=email, otp_code=otp_code, expires_at=expires_at)
+            _db.add(otp)
+            await _db.commit()
+
+            # Send email (best-effort)
+            send_otp_email(email, otp_code)
+
+            return {"message": "If an account exists, an OTP has been sent"}
+    except Exception as e:
+        logger.error(f"Error requesting password reset: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @timeit("get_user_profile")

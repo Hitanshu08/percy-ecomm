@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { forgotPassword } from '../../../lib/apiClient';
 
 interface ForgotPasswordFormProps {
   onSwitchToLogin: () => void;
@@ -29,11 +30,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin }: ForgotPasswordFo
     setError('');
 
     try {
-      // TODO: Implement forgot password API call
-      // await forgotPassword(email);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await forgotPassword(email);
       setIsSubmitted(true);
     } catch (err) {
       setError('Failed to send reset email. Please try again.');

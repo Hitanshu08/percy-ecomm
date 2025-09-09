@@ -291,6 +291,19 @@ export async function login(email: string, password: string) {
   return data;
 }
 
+export async function forgotPassword(email: string) {
+  const response = await fetch(`${API_URL}/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json',
+      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+      "Pragma": "no-cache",
+      "Expires": "0"
+     },
+    body: JSON.stringify({ email })
+  });
+  return handle(response);
+}
+
 // User API calls
 export async function getDashboard() {
   return apiCall(`${API_URL}/dashboard`);
