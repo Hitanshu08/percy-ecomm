@@ -3,8 +3,6 @@ from schemas.user_schema import User as UserSchema, UserCreate, ChangePasswordRe
 from api.dependencies import get_current_user
 from db.session import get_db_session
 from sqlalchemy.ext.asyncio import AsyncSession
-from db.session import get_db_session
-from sqlalchemy.ext.asyncio import AsyncSession
 from services.user_service import change_password, get_user_profile, create_user
 from sqlalchemy import select
 from db.models.user import User as UserModel
@@ -28,7 +26,7 @@ async def check_username(username: str, db: AsyncSession = Depends(get_db_sessio
 
 @timeit()
 @router.get("/me", response_model=UserSchema)
-async def read_users_me(current_user: UserSchema = Depends(get_current_user), db: AsyncSession = Depends(get_db_session)):
+async def read_users_me(current_user: UserSchema = Depends(get_current_user)):
     # Avoid redundant DB call; dependency already validated user. Convert to dict for JSONResponse.
     return no_store_json(current_user.model_dump())
 

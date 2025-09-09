@@ -5,11 +5,13 @@ from fastapi.middleware.gzip import GZipMiddleware
 from api.v1 import auth, users, services, wallet, admin
 from core.config import settings
 from db.base import initialize_database
+from db.session import engine, SessionLocal
+from sqlalchemy import text
 import logging
+from utils.logging_config import configure_logging, RequestContextMiddleware
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Configure logging with date-based files and TTL retention
+logger = configure_logging("percy_ecomm")
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -19,6 +21,9 @@ app = FastAPI(
 
 # Add GZip compression for larger JSON payloads
 app.add_middleware(GZipMiddleware, minimum_size=500)
+
+# Add logging context middleware to capture user_id and API path
+app.add_middleware(RequestContextMiddleware)
 
 NO_STORE_HEADERS = {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
@@ -55,6 +60,11 @@ async def startup_db_client():
 @app.on_event("shutdown")
 async def shutdown_db_client():
     """Application shutdown"""
+    try:
+        await engine.dispose()
+        logger.info("Disposed DB engine")
+    except Exception as e:
+        logger.warning(f"Engine dispose failed: {e}")
     logger.info("Application shutdown complete")
 
 @app.get("/")
@@ -63,4 +73,12 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "database": "connected"}
+    # Actively check DB connectivity
+    try:
+        async with SessionLocal() as db:
+            await db.execute(text("SELECT 1"))
+        db_status = "connected"
+    except Exception as e:
+        logger.warning(f"Health DB check failed: {e}")
+        db_status = "unavailable"
+    return {"status": "healthy", "database": db_status}

@@ -1,5 +1,5 @@
 from schemas.user_schema import User, CreditDeposit
-from db.session import SessionLocal
+from db.session import get_or_use_session
 from db.models.subscription import UserSubscription
 from db.models.service import Service as ServiceModel
 from db.models.user import User as UserModel
@@ -12,15 +12,15 @@ logger = logging.getLogger(__name__)
 async def get_wallet_info(current_user: User):
     """Get wallet information for the current user including per-subscription credits"""
     try:
-        async with SessionLocal() as db:
-            result = await db.execute(select(UserModel).where(UserModel.username == current_user.username))
+        async with get_or_use_session(None) as _db:
+            result = await _db.execute(select(UserModel).where(UserModel.username == current_user.username))
             user = result.scalars().first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
             subscription_details = []
-            subs = (await db.execute(select(UserSubscription).where(UserSubscription.user_id == user.id))).scalars().all()
+            subs = (await _db.execute(select(UserSubscription).where(UserSubscription.user_id == user.id))).scalars().all()
             for sub in subs:
-                svc = (await db.execute(select(ServiceModel).where(ServiceModel.id == sub.service_id))).scalars().first()
+                svc = (await _db.execute(select(ServiceModel).where(ServiceModel.id == sub.service_id))).scalars().first()
                 subscription_details.append({
                     "service_id": sub.service_id,
                     "service_name": svc.name if svc else "",
@@ -40,14 +40,14 @@ async def get_wallet_info(current_user: User):
 async def deposit_credits(current_user: User, deposit: CreditDeposit):
     """Deposit credits to user's wallet"""
     try:
-        async with SessionLocal() as db:
-            result = await db.execute(select(UserModel).where(UserModel.username == current_user.username))
+        async with get_or_use_session(None) as _db:
+            result = await _db.execute(select(UserModel).where(UserModel.username == current_user.username))
             user = result.scalars().first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
             new_credits = (user.credits or 0) + deposit.amount
             user.credits = new_credits
-            await db.commit()
+            await _db.commit()
             return {
                 "message": f"Successfully deposited {deposit.amount} credits",
                 "new_balance": new_credits,

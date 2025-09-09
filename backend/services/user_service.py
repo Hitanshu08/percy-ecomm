@@ -1,5 +1,5 @@
 from schemas.user_schema import UserCreate, UserUpdate, User, ChangePasswordRequest
-from db.session import SessionLocal
+from db.session import SessionLocal, get_or_use_session
 from db.models.user import User as UserModel
 from db.models.refresh_token import RefreshToken
 from core.security import get_password_hash, verify_password, create_access_token, create_refresh_token
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 async def create_user(user: UserCreate, db: AsyncSession  = None):
     """Create a new user"""
     try:
-        async with (db or SessionLocal()) as _db:
+        async with get_or_use_session(db) as _db:
             existing = await _db.execute(select(UserModel).where(UserModel.username == user.username))
             if existing.scalars().first() is not None:
                 raise HTTPException(status_code=400, detail="Username already registered")
@@ -60,7 +60,7 @@ async def create_user(user: UserCreate, db: AsyncSession  = None):
 async def authenticate_user(email: str, password: str, db: AsyncSession  = None):
     """Authenticate user and return user data"""
     try:
-        async with (db or SessionLocal()) as _db:
+        async with get_or_use_session(db) as _db:
             # Accept either email or username in the OAuth2 "username" field
             result = await _db.execute(
                 select(UserModel).where(
@@ -93,7 +93,7 @@ async def login_user(email: str, password: str, db: AsyncSession  = None):
             data={"sub": user.username},
         )
 
-        async with (db or SessionLocal()) as _db:
+        async with get_or_use_session(db) as _db:
             _db.add(RefreshToken(username=user.username, token=refresh_token))
             await _db.commit()
         
@@ -116,7 +116,7 @@ async def login_user(email: str, password: str, db: AsyncSession  = None):
 async def get_user_profile(username: str, db: AsyncSession  = None):
     """Get user profile"""
     try:
-        async with (db or SessionLocal()) as _db:
+        async with get_or_use_session(db) as _db:
             result = await _db.execute(select(UserModel).where(UserModel.username == username))
             user = result.scalars().first()
             if not user:
@@ -136,7 +136,7 @@ async def get_user_profile(username: str, db: AsyncSession  = None):
 async def update_user_profile(username: str, user_update: UserUpdate, db: AsyncSession  = None):
     """Update user profile"""
     try:
-        async with (db or SessionLocal()) as _db:
+        async with get_or_use_session(db) as _db:
             result = await _db.execute(select(UserModel).where(UserModel.username == username))
             user = result.scalars().first()
             if not user:
@@ -162,7 +162,7 @@ async def update_user_profile(username: str, user_update: UserUpdate, db: AsyncS
 async def change_password(username: str, password_request: ChangePasswordRequest, db: AsyncSession  = None):
     """Change user password"""
     try:
-        async with (db or SessionLocal()) as _db:
+        async with get_or_use_session(db) as _db:
             result = await _db.execute(select(UserModel).where(UserModel.username == username))
             user = result.scalars().first()
             if not user:
@@ -179,7 +179,7 @@ async def change_password(username: str, password_request: ChangePasswordRequest
 async def get_user_by_username(username: str, db: AsyncSession  = None):
     """Get user by username"""
     try:
-        async with (db or SessionLocal()) as _db:
+        async with get_or_use_session(db) as _db:
             result = await _db.execute(select(UserModel).where(UserModel.username == username))
             user = result.scalars().first()
             if not user:

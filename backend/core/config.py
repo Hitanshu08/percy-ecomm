@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     # Security settings
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     
     # Admin settings
@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     
     # Database settings (MySQL)
     DATABASE_URL: str
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 20
+    DB_POOL_RECYCLE: int = 300
+    DB_POOL_TIMEOUT: int = 10
     
     # CORS settings
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
@@ -29,7 +33,9 @@ class Settings(BaseSettings):
     # API settings
     API_V1_STR: str = "/api/v1"
     API_BASE_URL: str = "https://devmens.com"
-    LOG_LEVEL: str = "INFO"
+    LOG_LEVEL: str = "DEBUG"
+    LOG_DIR: str = "logs"
+    LOG_TTL_DAYS: int = 7
     
     class Config:
         env_file = ".env"

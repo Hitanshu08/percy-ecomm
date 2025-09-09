@@ -1,6 +1,6 @@
 from schemas.user_schema import AdminAssignSubscription, AdminAddCredits, AdminRemoveCredits, AdminRemoveSubscription, AdminUpdateSubscriptionEndDate, User, AdminUpdateSubscriptionActive
 from config import config
-from db.session import SessionLocal
+from db.session import SessionLocal, get_or_use_session
 from db.models.user import User as UserModel
 from db.models.service import Service as ServiceModel, ServiceAccount
 from db.models.subscription import ServiceDurationCredit, UserSubscription
@@ -24,7 +24,7 @@ def _format_date(date_obj):
 
 async def assign_subscription(request: AdminAssignSubscription, current_user: User, db: AsyncSession = None):
     try:
-        async with (db or SessionLocal()) as db:
+        async with get_or_use_session(db) as db:
             user = (await db.execute(select(UserModel).where(UserModel.username == request.username))).scalars().first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
@@ -166,7 +166,7 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
 
 async def add_credits_to_user(request: AdminAddCredits, current_user: User, db: AsyncSession = None):
     try:
-        async with (db or SessionLocal()) as db:
+        async with get_or_use_session(db) as db:
             user = (await db.execute(select(UserModel).where(UserModel.username == request.username))).scalars().first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
@@ -183,7 +183,7 @@ async def add_credits_to_user(request: AdminAddCredits, current_user: User, db: 
 
 async def remove_credits_from_user(request: AdminRemoveCredits, current_user: User, db: AsyncSession = None):
     try:
-        async with (db or SessionLocal()) as db:
+        async with get_or_use_session(db) as db:
             user = (await db.execute(select(UserModel).where(UserModel.username == request.username))).scalars().first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
@@ -200,7 +200,7 @@ async def remove_credits_from_user(request: AdminRemoveCredits, current_user: Us
 
 async def remove_user_subscription(request: AdminRemoveSubscription, current_user: User, db: AsyncSession = None):
     try:
-        async with (db or SessionLocal()) as db:
+        async with get_or_use_session(db) as db:
             user = (await db.execute(select(UserModel).where(UserModel.username == request.username))).scalars().first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
@@ -235,7 +235,7 @@ async def remove_user_subscription(request: AdminRemoveSubscription, current_use
 
 async def update_user_subscription_end_date(request: AdminUpdateSubscriptionEndDate, current_user: User, db: AsyncSession = None):
     try:
-        async with (db or SessionLocal()) as db:
+        async with get_or_use_session(db) as db:
             user = (await db.execute(select(UserModel).where(UserModel.username == request.username))).scalars().first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
@@ -276,7 +276,7 @@ async def update_user_subscription_end_date(request: AdminUpdateSubscriptionEndD
 
 async def update_user_subscription_active(request: AdminUpdateSubscriptionActive, current_user: User, db: AsyncSession = None):
     try:
-        async with (db or SessionLocal()) as db:
+        async with get_or_use_session(db) as db:
             user = (await db.execute(select(UserModel).where(UserModel.username == request.username))).scalars().first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
@@ -308,7 +308,7 @@ async def update_user_subscription_active(request: AdminUpdateSubscriptionActive
 
 async def get_all_users(current_user: User, page: int = 1, size: int = 20, search: str = None, db: AsyncSession = None):
     try:
-        async with (db or SessionLocal()) as db:
+        async with get_or_use_session(db) as db:
             filters = None
             if search:
                 like = f"%{search}%"
@@ -352,7 +352,7 @@ async def get_all_users(current_user: User, page: int = 1, size: int = 20, searc
 
 async def get_all_admin_services(current_user: User, page: int = 1, size: int = 20, search: str = None, db: AsyncSession = None):
     try:
-        async with (db or SessionLocal()) as db:
+        async with get_or_use_session(db) as db:
             filters = None
             if search:
                 like = f"%{search}%"
@@ -396,7 +396,7 @@ async def get_all_admin_services(current_user: User, page: int = 1, size: int = 
 
 async def update_service_credits(service_name: str, credits_map: dict, current_user: User, db: AsyncSession = None):
     try:
-        async with (db or SessionLocal()) as db:
+        async with get_or_use_session(db) as db:
             svc = (await db.execute(select(ServiceModel).where(ServiceModel.name == service_name))).scalars().first()
             if not svc:
                 raise HTTPException(status_code=404, detail="Service not found")
@@ -427,7 +427,7 @@ async def update_service_credits(service_name: str, credits_map: dict, current_u
 
 async def get_service_credits_admin(service_name: str, current_user: User, db: AsyncSession = None):
     try:
-        async with (db or SessionLocal()) as db:
+        async with get_or_use_session(db) as db:
             svc = (await db.execute(select(ServiceModel).where(ServiceModel.name == service_name))).scalars().first()
             if not svc:
                 raise HTTPException(status_code=404, detail="Service not found")
@@ -442,7 +442,7 @@ async def add_service(service_data: dict, current_user: User, db: AsyncSession =
         service_name = service_data.get("name")
         if not service_name:
             raise HTTPException(status_code=400, detail="Service name is required")
-        async with (db or SessionLocal()) as db:
+        async with get_or_use_session(db) as db:
             existing_service = (await db.execute(select(ServiceModel).where(ServiceModel.name == service_name))).scalars().first()
             if existing_service:
                 raise HTTPException(status_code=400, detail="Service already exists")
@@ -488,7 +488,7 @@ async def add_service(service_data: dict, current_user: User, db: AsyncSession =
 
 async def update_service(service_name: str, service_data: dict, current_user: User, db: AsyncSession = None):
     try:
-        async with (db or SessionLocal()) as db:
+        async with get_or_use_session(db) as db:
             existing_service = (await db.execute(select(ServiceModel).where(ServiceModel.name == service_name))).scalars().first()
             if not existing_service:
                 raise HTTPException(status_code=404, detail="Service not found")
@@ -552,7 +552,7 @@ async def update_service(service_name: str, service_data: dict, current_user: Us
 
 async def delete_service(service_name: str, current_user: User, db: AsyncSession = None):
     try:
-        async with (db or SessionLocal()) as db:
+        async with get_or_use_session(db) as db:
             service = (await db.execute(select(ServiceModel).where(ServiceModel.name == service_name))).scalars().first()
             if not service:
                 raise HTTPException(status_code=404, detail="Service not found")
@@ -581,7 +581,7 @@ async def delete_service(service_name: str, current_user: User, db: AsyncSession
 
 async def get_service_details(service_name: str, current_user: User, db: AsyncSession = None):
     try:
-        async with (db or SessionLocal()) as db:
+        async with get_or_use_session(db) as db:
             service = (await db.execute(select(ServiceModel).where(ServiceModel.name == service_name))).scalars().first()
             if not service:
                 raise HTTPException(status_code=404, detail="Service not found")
@@ -613,7 +613,7 @@ async def get_service_details(service_name: str, current_user: User, db: AsyncSe
 
 async def get_user_subscriptions_admin(username: str, current_user: User, db: AsyncSession = None):
     try:
-        async with (db or SessionLocal()) as db:
+        async with get_or_use_session(db) as db:
             user = (await db.execute(select(UserModel).where(UserModel.username == username))).scalars().first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
