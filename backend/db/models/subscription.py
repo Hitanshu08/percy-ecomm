@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, Date, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Boolean, Date, DateTime, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.sql import func
 from db.session import Base
 
@@ -27,5 +27,9 @@ class UserSubscription(Base):
     total_duration_days = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    __table_args__ = (
+        Index("ix_user_subs_user_service_active", "user_id", "service_id", "is_active"),
+        Index("ix_user_subs_user_account", "user_id", "account_id"),
+    )
 
 

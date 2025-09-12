@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime, Integer, ForeignKey
+from sqlalchemy import Column, String, Boolean, DateTime, Integer, ForeignKey, Index
 from sqlalchemy.sql import func
 from sqlalchemy.types import JSON
 from db.session import Base
@@ -28,3 +28,7 @@ class ServiceAccount(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    __table_args__ = (
+        Index("ix_service_accounts_active_by_service", "service_id", "is_active"),
+        Index("ix_service_accounts_service_end_date", "service_id", "end_date"),
+    )

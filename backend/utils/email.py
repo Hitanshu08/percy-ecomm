@@ -19,7 +19,7 @@ def _build_message(subject: str, to_email: str, html_body: str, text_body: Optio
 
 
 def send_email(subject: str, to_email: str, html_body: str, text_body: Optional[str] = None) -> bool:
-    if not settings.SMTP_HOST or not settings.SMTP_FROM_EMAIL:
+    if not getattr(settings, 'SMTP_HOST', None) or not getattr(settings, 'SMTP_FROM_EMAIL', None):
         logger.warning("SMTP not configured; skipping email send")
         return False
     try:

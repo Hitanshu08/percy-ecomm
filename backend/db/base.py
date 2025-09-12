@@ -11,6 +11,7 @@ async def initialize_database():
         assert isinstance(engine, AsyncEngine)
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            # Ensure indexes exist (create_all will create them if missing)
         logger.info("Database tables created successfully")
         
         # Note: Data seeding is now handled by database_setup.ipynb

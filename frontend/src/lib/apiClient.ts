@@ -158,7 +158,21 @@ async function authHeadersFormData(): Promise<Record<string, string>> {
   return headers;
 }
 
+function serverErrorGuard(res: Response) {
+  if (res.status >= 500) {
+    try {
+      window.alert('Issue with server. Please try again later.');
+    } catch (_) {
+      // non-browser env, ignore
+    }
+    const err = new Error('server_error');
+    (err as any).code = 'SERVER_ERROR';
+    throw err;
+  }
+}
+
 async function handle(res: Response) {
+  serverErrorGuard(res);
   if (res.status === 401) {
     // Try to refresh token on 401 once, but don't redirect here
     const newToken = await refreshAccessToken();
@@ -190,6 +204,7 @@ export async function apiCall<T>(url: string, options: RequestInit = {}): Promis
       ...options.headers,
     },
   });
+  serverErrorGuard(response);
 
   if (response.status === 401) {
     // Try to refresh token, coalesced
@@ -205,6 +220,7 @@ export async function apiCall<T>(url: string, options: RequestInit = {}): Promis
         },
       });
       
+      serverErrorGuard(retryResponse);
       if (!retryResponse.ok) {
         if (retryResponse.status === 401) {
           // Final auth failure; clear and redirect
@@ -245,6 +261,7 @@ export async function signup(username: string, email: string, password: string) 
      },
     body: JSON.stringify({ username, email, password })
   });
+  serverErrorGuard(response);
   return handle(response);
 }
 
@@ -257,8 +274,7 @@ export async function checkUsername(username: string): Promise<{ available: bool
       'Expires': '0'
     }
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return handle(res);
 }
 
 export async function login(email: string, password: string) {
@@ -275,6 +291,7 @@ export async function login(email: string, password: string) {
      },
     body: formData
   });
+  serverErrorGuard(response);
   
   const data = await handle(response);
   

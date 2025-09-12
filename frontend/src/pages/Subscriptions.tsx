@@ -154,7 +154,7 @@ export default function Subscriptions() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {subscriptions.map((subscription) => (
               <SubscriptionCard
-                key={subscription.account_id}
+                key={subscription.service_name}
                 subscription={subscription}
                 theme={theme}
                 formatDate={formatDate}

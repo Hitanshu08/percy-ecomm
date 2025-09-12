@@ -22,6 +22,25 @@ export default function Input({
   const shouldShowToggle = showPasswordToggle && isPassword;
   const inputType = shouldShowToggle && showPassword ? "text" : type;
   
+  // Wrap onChange to trim leading/trailing spaces for non-password fields
+  const originalOnChange = (props as any)?.onChange as (e: React.ChangeEvent<HTMLInputElement>) => void;
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isPassword) {
+      const v = e.target.value;
+      const trimmed = v.replace(/^\s+|\s+$/g, "");
+      if (trimmed !== v) {
+        // Create a shallow clone event with trimmed value
+        const cloned = {
+          ...e,
+          target: { ...e.target, value: trimmed }
+        } as React.ChangeEvent<HTMLInputElement>;
+        originalOnChange && originalOnChange(cloned);
+        return;
+      }
+    }
+    originalOnChange && originalOnChange(e);
+  };
+  
   return (
     <div className="space-y-1">
       {label ? (
@@ -37,6 +56,7 @@ export default function Input({
             shouldShowToggle ? 'pr-10' : ''
           } ${className}`}
           {...props}
+          onChange={handleChange}
         />
         {shouldShowToggle && (
           <button

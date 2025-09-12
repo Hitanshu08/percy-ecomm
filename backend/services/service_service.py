@@ -1,6 +1,8 @@
 from schemas.user_schema import User, SubscriptionPurchase
 from config import config
 from db.session import get_or_use_session
+from core.config import settings
+from db.mongodb import get_mongo_db
 from db.models.user import User as UserModel
 from db.models.service import Service as ServiceModel, ServiceAccount
 from db.models.subscription import ServiceDurationCredit, UserSubscription
@@ -15,6 +17,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import time
 from utils.timing import timeit
+from sqlalchemy.exc import IntegrityError, DBAPIError
+from utils.db import safe_commit
 
 _services_cache = {"data": None, "ts": 0.0}
 _user_services_cache: dict[str, dict] = {}
@@ -47,6 +51,74 @@ async def get_services(current_user: User = None, db: AsyncSession  = None):
                 return cached["data"]
         services = []
         today = datetime.now()
+        if settings.USE_MONGO:
+            mdb = get_mongo_db()
+            if mdb is None:
+                return {"services": []}
+            # Prefetch current user's subscriptions to compute user_end_date per service
+            user_end_by_service: dict[str, str] = {}
+            if current_user and getattr(current_user, "username", None):
+                subs = await mdb.subscriptions.find({"username": current_user.username}).to_list(length=1000)
+                # keep latest end_date per service_name
+                for s in subs:
+                    svc_name = s.get("service_name", "")
+                    end_s = s.get("end_date")
+                    if not svc_name or not end_s:
+                        continue
+                    try:
+                        end_dt = parse_date(end_s)
+                    except Exception:
+                        # fallback: if no existing value, set raw string
+                        if svc_name not in user_end_by_service:
+                            user_end_by_service[svc_name] = end_s
+                        continue
+                    prev_s = user_end_by_service.get(svc_name)
+                    if not prev_s:
+                        user_end_by_service[svc_name] = end_dt.strftime("%d/%m/%Y")
+                    else:
+                        try:
+                            prev_dt = parse_date(prev_s)
+                            if end_dt > prev_dt:
+                                user_end_by_service[svc_name] = end_dt.strftime("%d/%m/%Y")
+                        except Exception:
+                            user_end_by_service[svc_name] = end_dt.strftime("%d/%m/%Y")
+
+            docs = await mdb.services.find({}, {"_id": 0, "name": 1, "image": 1, "accounts": 1, "credits": 1}).to_list(length=1000)
+            services = []
+            for svc in docs:
+                accounts = svc.get("accounts") or []
+                available_accounts = 0
+                max_days_until_expiry = 0
+                max_end_date = ""
+                for a in accounts:
+                    end_s = (a or {}).get("end_date")
+                    if not end_s:
+                        continue
+                    try:
+                        end_dt = parse_date(end_s)
+                        end_dt_dt = end_dt
+                        days_until_expiry = (end_dt_dt - today).days
+                        if days_until_expiry > max_days_until_expiry:
+                            max_days_until_expiry = days_until_expiry
+                            max_end_date = end_dt_dt.strftime("%d/%m/%Y")
+                        available_accounts += 1
+                    except Exception:
+                        # if parsing fails, still count the account and set a fallback end date if we don't have one
+                        available_accounts += 1
+                        if not max_end_date:
+                            max_end_date = end_s
+                        continue
+                services.append({
+                    "name": svc.get("name", ""),
+                    "image": svc.get("image", ""),
+                    "available_accounts": available_accounts,
+                    "total_accounts": len(accounts),
+                    "max_days_until_expiry": max_days_until_expiry,
+                    "max_end_date": max_end_date,
+                    "credits": svc.get("credits", {}),
+                    "user_end_date": user_end_by_service.get(svc.get("name", ""), ""),
+                })
+            return {"services": services}
         async with get_or_use_session(db) as _db:
             user_record = None
             if current_user and getattr(current_user, "username", None):
@@ -138,6 +210,8 @@ async def get_services(current_user: User = None, db: AsyncSession  = None):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 async def purchase_subscription(request: SubscriptionPurchase, current_user: User, db: AsyncSession  = None):
+    if settings.USE_MONGO:
+        raise HTTPException(status_code=501, detail="Subscriptions not implemented for Mongo yet")
     async with get_or_use_session(db) as _db:
         try:
             result = await _db.execute(select(UserModel).where(UserModel.username == current_user.username))
@@ -233,7 +307,7 @@ async def purchase_subscription(request: SubscriptionPurchase, current_user: Use
                 if (user.credits or 0) < cost_to_deduct:
                     raise HTTPException(status_code=400, detail="Insufficient credits")
                 user.credits = (user.credits or 0) - cost_to_deduct
-                await _db.commit()
+                await safe_commit(_db, client_error_message="Invalid subscription request", server_error_message="Internal server error")
                 updated_credits = user.credits or 0
                 new_end_date_str = format_date(proposed_end)
                 return {
@@ -262,7 +336,7 @@ async def purchase_subscription(request: SubscriptionPurchase, current_user: Use
                 if (user.credits or 0) < cost_to_deduct:
                     raise HTTPException(status_code=400, detail="Insufficient credits")
                 user.credits = (user.credits or 0) - cost_to_deduct
-                await _db.commit()
+                await safe_commit(_db, client_error_message="Invalid subscription request", server_error_message="Internal server error")
                 updated_credits = user.credits or 0
                 return {
                     "message": f"Purchased {duration_config.get('name', request.duration)} for {request.service_name}",
@@ -282,6 +356,36 @@ async def purchase_subscription(request: SubscriptionPurchase, current_user: Use
 
 @timeit("get_user_subscriptions")
 async def get_user_subscriptions(current_user: User, db: AsyncSession  = None):
+    if settings.USE_MONGO:
+        mdb = get_mongo_db()
+        if mdb is None:
+            return {"subscriptions": []}
+        subs = await mdb.subscriptions.find({"username": current_user.username}).to_list(length=1000)
+        subscriptions = []
+        for s in subs:
+            svc = await mdb.services.find_one({"name": s.get("service_name", "")}, {"image": 1, "accounts": 1})
+            # include password for active subs if available from embedded service accounts
+            acct_pw = ""
+            acc_id = s.get("account_id")
+            if svc and acc_id:
+                for a in (svc.get("accounts") or []):
+                    if (a or {}).get("account_id") == acc_id:
+                        acct_pw = (a or {}).get("password_hash", "")
+                        break
+            subscriptions.append({
+                "service_name": s.get("service_name", ""),
+                "service_image": (svc or {}).get("image", ""),
+                "account_id": acc_id,
+                **({"account_password": acct_pw} if acct_pw else {}),
+                "end_date": s.get("end_date", ""),
+                "is_active": bool(s.get("is_active", True)),
+                "duration": s.get("duration_key", ""),
+                "total_duration": int(s.get("total_duration_days", 0)),
+                "created_date": s.get("start_date", ""),
+                "last_extension": "",
+                "extension_duration": "",
+            })
+        return {"subscriptions": subscriptions}
     
     async with get_or_use_session(db) as _db:
         try:
@@ -341,6 +445,24 @@ async def refresh_access_token(request: dict, db: AsyncSession  = None):
         refresh_token = request.get("refresh_token")
         if not refresh_token:
             raise HTTPException(status_code=400, detail="Refresh token required")
+        if settings.USE_MONGO:
+            # Validate against Mongo refresh_tokens
+            mdb = get_mongo_db()
+            if mdb is None:
+                raise HTTPException(status_code=500, detail="Mongo not available")
+            doc = await mdb.refresh_tokens.find_one({"token": refresh_token})
+            if not doc:
+                raise HTTPException(status_code=401, detail="Invalid refresh token")
+            username = doc.get("username", "")
+            # Try to enrich from users collection
+            user_doc = await mdb.users.find_one({"username": username})
+            if not user_doc:
+                raise HTTPException(status_code=401, detail="Invalid refresh token")
+            access_token = create_access_token(
+                data={"sub": user_doc.get("username"), "email": user_doc.get("email"), "user_id": (user_doc.get("user_id") or user_doc.get("username")), "role": user_doc.get("role", "user")},
+                expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+            )
+            return {"access_token": access_token, "token_type": "bearer", "refresh_token": refresh_token}
         # Try with provided session; if it fails due to transport, retry with a new session
         user = None
         try:

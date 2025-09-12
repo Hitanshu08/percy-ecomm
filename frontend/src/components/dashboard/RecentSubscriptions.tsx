@@ -68,14 +68,14 @@ const RecentSubscriptions: React.FC<RecentSubscriptionsProps> = ({
                   <div className="flex-shrink-0 w-full sm:w-auto">
                     {subscription.service_image && subscription.service_image.trim().startsWith('<svg') ? (
                       <div
-                        className="service-logo h-20 sm:h-24 w-full sm:w-24 mx-auto object-contain bg-[ghostwhite] rounded"
+                        className="service-logo h-20 sm:h-24 w-full sm:w-24 mx-auto object-cover bg-[ghostwhite] rounded"
                         dangerouslySetInnerHTML={{ __html: subscription.service_image }}
                       />
                     ) : (
                       <img
                         src={subscription.service_image}
                         alt={subscription.service_name || 'Service'}
-                        className="service-logo h-20 sm:h-24 w-full sm:w-24 mx-auto object-contain bg-[ghostwhite] rounded"
+                        className="service-logo h-20 sm:h-24 w-full sm:w-24 mx-auto object-cover bg-[ghostwhite] rounded"
                       />
                     )}
                   </div>

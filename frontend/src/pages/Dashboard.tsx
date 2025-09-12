@@ -147,19 +147,19 @@ const Dashboard: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {dashboardData.recent_subscriptions.map((subscription, index) => (
-                <div key={subscription.account_id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+                <div key={subscription.service_name} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                     <div className="flex-shrink-0 w-full sm:w-auto">
                       {subscription.service_image && subscription.service_image.trim().startsWith('<svg') ? (
                         <div
-                          className="service-logo h-20 sm:h-24 w-full sm:w-24 mx-auto object-contain bg-[ghostwhite] rounded"
+                          className="service-logo h-20 sm:h-24 w-full sm:w-24 mx-auto object-cover bg-[ghostwhite] rounded"
                           dangerouslySetInnerHTML={{ __html: subscription.service_image }}
                         />
                       ) : (
                         <img
                           src={subscription.service_image}
                           alt={subscription.service_name || 'Service'}
-                          className="service-logo h-20 sm:h-24 w-full sm:w-24 mx-auto object-contain bg-[ghostwhite] rounded"
+                          className="service-logo h-20 sm:h-24 w-full sm:w-24 mx-auto object-cover bg-[ghostwhite] rounded"
                         />
                       )}
                     </div>

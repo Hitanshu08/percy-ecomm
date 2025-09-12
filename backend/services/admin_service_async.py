@@ -7,8 +7,12 @@ from db.models.subscription import ServiceDurationCredit, UserSubscription
 from fastapi import HTTPException
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import select, or_, func
+from sqlalchemy.exc import IntegrityError, DBAPIError
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
+from core.config import settings
+from db.mongodb import get_mongo_db
+from utils.db import safe_commit
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +27,242 @@ def _format_date(date_obj):
     return date_obj.strftime("%d/%m/%Y")
 
 async def assign_subscription(request: AdminAssignSubscription, current_user: User, db: AsyncSession = None):
-    try:
-        async with get_or_use_session(db) as db:
-            user = (await db.execute(select(UserModel).where(UserModel.username == request.username))).scalars().first()
+    if settings.USE_MONGO:
+        # MongoDB implementation
+        try:
+            mdb = get_mongo_db()
+            if mdb is None:
+                raise HTTPException(status_code=500, detail="Mongo not available")
+
+            from datetime import datetime, timedelta
+
+            # Helpers for date-only strings
+            def to_date(d: datetime) -> str:
+                return d.strftime("%d/%m/%Y")
+
+            user = await mdb.users.find_one({"username": request.username})
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            today_dt = datetime.now()
+            today_d = today_dt.date()
+            today_str = to_date(today_dt)
+
+            assigned_account = None
+            service_doc = None
+            days = 0
+            cost_to_deduct = 0
+
+            if request.service_name and request.duration:
+                service_doc = await mdb.services.find_one({"name": request.service_name})
+                if not service_doc:
+                    raise HTTPException(status_code=404, detail="Service not found")
+                duration_cfg = config.get_subscription_durations().get(request.duration)
+                if not duration_cfg:
+                    raise HTTPException(status_code=400, detail="Invalid duration")
+                try:
+                    days = int(duration_cfg.get("days", 0))
+                except Exception:
+                    days = 0
+                svc_credits_map = service_doc.get("credits", {}) or {}
+                try:
+                    cost_to_deduct = int(svc_credits_map.get(request.duration, duration_cfg.get("credits_cost", 0)))
+                except Exception:
+                    cost_to_deduct = int(duration_cfg.get("credits_cost", 0))
+                # choose active account that can last the duration
+                for acc in (service_doc.get("accounts") or []):
+                    if not (acc or {}).get("is_active", True):
+                        continue
+                    end_s = (acc or {}).get("end_date")
+                    if not end_s:
+                        continue
+                    try:
+                        acc_end_dt = _parse_date(end_s)
+                        acc_end_d = acc_end_dt.date() if hasattr(acc_end_dt, "date") else acc_end_dt
+                    except Exception:
+                        continue
+                    if (acc_end_d - today_d).days >= days:
+                        assigned_account = acc
+                        break
+                if not assigned_account:
+                    raise HTTPException(status_code=400, detail="No account can satisfy requested duration")
+                proposed_end_dt = today_dt + timedelta(days=days)
+            elif request.service_id and request.end_date:
+                # resolve by account_id or service name
+                acc_id = str(request.service_id)
+                # Try match by account_id
+                service_doc = await mdb.services.find_one({"accounts.account_id": acc_id})
+                if not service_doc:
+                    # fallback to service name
+                    service_doc = await mdb.services.find_one({"name": acc_id})
+                    if not service_doc:
+                        raise HTTPException(status_code=404, detail="Service or account not found")
+                # Determine assigned account
+                for acc in (service_doc.get("accounts") or []):
+                    if (acc or {}).get("account_id") == acc_id:
+                        assigned_account = acc
+                        break
+                # Parse requested end date; ensure account can support
+                try:
+                    new_end_dt = _parse_date(request.end_date)
+                except Exception:
+                    raise HTTPException(status_code=400, detail="Invalid end date format")
+                new_end_d = new_end_dt.date() if hasattr(new_end_dt, "date") else new_end_dt
+                days = max(0, (new_end_d - today_d).days)
+                durations = config.get_subscription_durations()
+                chosen = None
+                for _, val in durations.items():
+                    try:
+                        if int(val.get("days", 0)) >= days and (chosen is None or int(val["days"]) < int(chosen["days"])):
+                            chosen = val
+                    except Exception:
+                        continue
+                if chosen is None and durations:
+                    # estimate per-day from the largest plan
+                    max_plan = max(durations.values(), key=lambda v: int(v.get("days", 0)))
+                    try:
+                        per_day = float(max_plan.get("credits_cost", 0)) / max(1, int(max_plan.get("days", 1)))
+                        cost_to_deduct = int(round(per_day * days))
+                    except Exception:
+                        cost_to_deduct = 0
+                else:
+                    try:
+                        cost_to_deduct = int(chosen.get("credits_cost", 0)) if chosen else 0
+                    except Exception:
+                        cost_to_deduct = 0
+                # If account chosen explicitly, ensure it can sustain
+                if assigned_account and (assigned_account.get("end_date")):
+                    try:
+                        acc_end_dt = _parse_date(assigned_account.get("end_date"))
+                        acc_end_d = acc_end_dt.date() if hasattr(acc_end_dt, "date") else acc_end_dt
+                        if new_end_d > acc_end_d:
+                            raise HTTPException(status_code=400, detail="Requested end date exceeds account expiry")
+                    except HTTPException:
+                        raise
+                    except Exception:
+                        pass
+                else:
+                    # pick any account in the service that can satisfy end date
+                    picked = None
+                    for acc in (service_doc.get("accounts") or []):
+                        if not (acc or {}).get("is_active", True):
+                            continue
+                        end_s = (acc or {}).get("end_date")
+                        if not end_s:
+                            continue
+                        try:
+                            acc_end_dt = _parse_date(end_s)
+                            acc_end_d = acc_end_dt.date() if hasattr(acc_end_dt, "date") else acc_end_dt
+                            if acc_end_d >= new_end_d:
+                                picked = acc
+                                break
+                        except Exception:
+                            continue
+                    if not picked:
+                        raise HTTPException(status_code=400, detail="No account can satisfy requested end date")
+                    assigned_account = picked
+                proposed_end_dt = new_end_dt
+            else:
+                raise HTTPException(status_code=400, detail="Provide either service_id+end_date or service_name+duration")
+
+            # Credits check
+            current_credits = int(user.get("credits", 0))
+            if current_credits < int(cost_to_deduct):
+                raise HTTPException(status_code=400, detail="Insufficient credits")
+
+            service_name = service_doc.get("name", request.service_name or "")
+            account_id = (assigned_account or {}).get("account_id")
+
+            # Extend or create subscription
+            existing = await mdb.subscriptions.find_one({"username": request.username, "service_name": service_name, "is_active": True})
+            if existing:
+                # base date = max(existing end, today)
+                try:
+                    exist_end_dt = _parse_date(existing.get("end_date")) if existing.get("end_date") else today_dt
+                except Exception:
+                    exist_end_dt = today_dt
+                base_dt = exist_end_dt if exist_end_dt > today_dt else today_dt
+                new_end_dt2 = base_dt + timedelta(days=days)
+                # Ensure account can sustain
+                try:
+                    acc_end_dt = _parse_date((assigned_account or {}).get("end_date")) if (assigned_account or {}).get("end_date") else None
+                    if acc_end_dt and new_end_dt2.date() > (acc_end_dt.date() if hasattr(acc_end_dt, "date") else acc_end_dt):
+                        # try to find another account
+                        found = None
+                        for acc in (service_doc.get("accounts") or []):
+                            if not (acc or {}).get("is_active", True):
+                                continue
+                            end_s = (acc or {}).get("end_date")
+                            if not end_s:
+                                continue
+                            try:
+                                acc_end_dt2 = _parse_date(end_s)
+                                if acc_end_dt2 and acc_end_dt2 >= new_end_dt2:
+                                    found = acc
+                                    break
+                            except Exception:
+                                continue
+                        if not found:
+                            raise HTTPException(status_code=400, detail="No account can satisfy requested extension")
+                        assigned_account = found
+                        account_id = found.get("account_id")
+                except HTTPException:
+                    raise
+                except Exception:
+                    pass
+                await mdb.subscriptions.update_one(
+                    {"_id": existing.get("_id")},
+                    {"$set": {
+                        "end_date": to_date(new_end_dt2),
+                        "account_id": account_id,
+                        "duration_key": request.duration or existing.get("duration_key", ""),
+                    }, "$inc": {"total_duration_days": int(days)}}
+                )
+                new_end_str = to_date(new_end_dt2)
+            else:
+                # create new sub
+                new_end_str = to_date(proposed_end_dt)
+                if assigned_account and assigned_account.get("end_date"):
+                    try:
+                        acc_end_dt = _parse_date(assigned_account.get("end_date"))
+                        if proposed_end_dt.date() > (acc_end_dt.date() if hasattr(acc_end_dt, "date") else acc_end_dt):
+                            raise HTTPException(status_code=400, detail="Requested duration exceeds account expiry")
+                    except HTTPException:
+                        raise
+                    except Exception:
+                        pass
+                await mdb.subscriptions.insert_one({
+                    "username": request.username,
+                    "service_name": service_name,
+                    "account_id": account_id,
+                    "start_date": today_str,
+                    "end_date": new_end_str,
+                    "is_active": True,
+                    "duration_key": request.duration or "",
+                    "total_duration_days": int(days),
+                })
+
+            # Deduct credits
+            await mdb.users.update_one({"username": request.username}, {"$inc": {"credits": -int(cost_to_deduct)}})
+
+            return {
+                "message": f"Assigned subscription to {request.username}",
+                "credits": max(0, current_credits - int(cost_to_deduct)),
+                "cost": int(cost_to_deduct),
+                "service_name": service_name,
+                "assigned_account_id": account_id,
+                "account_expiry_days": int(days),
+                "credits_deducted": int(cost_to_deduct),
+                "remaining_credits": max(0, current_credits - int(cost_to_deduct)),
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error assigning subscription (Mongo): {e}")
+            raise HTTPException(status_code=500, detail="Failed to assign subscription")
+    async with get_or_use_session(db) as session:
+        try:
+            user = (await session.execute(select(UserModel).where(UserModel.username == request.username))).scalars().first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
 
@@ -40,7 +277,7 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
             today_d = today_dt.date()
 
             if request.service_name and request.duration:
-                target_service = (await db.execute(select(ServiceModel).where(ServiceModel.name == request.service_name))).scalars().first()
+                target_service = (await session.execute(select(ServiceModel).where(ServiceModel.name == request.service_name))).scalars().first()
                 if not target_service:
                     raise HTTPException(status_code=404, detail="Service not found")
                 duration_cfg = config.get_subscription_durations().get(request.duration)
@@ -48,11 +285,11 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
                     raise HTTPException(status_code=400, detail="Invalid duration")
                 days = int(duration_cfg.get("days", 0))
                 # credits from normalized table
-                sdc_rows = (await db.execute(select(ServiceDurationCredit).where(ServiceDurationCredit.service_id == target_service.id))).scalars().all()
+                sdc_rows = (await session.execute(select(ServiceDurationCredit).where(ServiceDurationCredit.service_id == target_service.id))).scalars().all()
                 svc_credits_map = {r.duration_key: r.credits for r in sdc_rows}
                 cost_to_deduct = int(svc_credits_map.get(request.duration, duration_cfg.get("credits_cost", 0)))
                 # pick an active account that can satisfy the duration
-                accounts = (await db.execute(select(ServiceAccount).where(ServiceAccount.service_id == target_service.id, ServiceAccount.is_active == True))).scalars().all()
+                accounts = (await session.execute(select(ServiceAccount).where(ServiceAccount.service_id == target_service.id, ServiceAccount.is_active == True))).scalars().all()
                 for acc in accounts:
                     if not acc.end_date:
                         continue
@@ -65,18 +302,18 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
                 proposed_end_d = today_d + timedelta(days=days)
             elif request.service_id and request.end_date:
                 # resolve account by external id or internal pk or service name
-                sa = (await db.execute(select(ServiceAccount).where(ServiceAccount.account_id == request.service_id))).scalars().first()
+                sa = (await session.execute(select(ServiceAccount).where(ServiceAccount.account_id == request.service_id))).scalars().first()
                 if not sa:
                     try:
                         pk = int(request.service_id)
-                        sa = (await db.execute(select(ServiceAccount).where(ServiceAccount.id == pk))).scalars().first()
+                        sa = (await session.execute(select(ServiceAccount).where(ServiceAccount.id == pk))).scalars().first()
                     except Exception:
-                        svc = (await db.execute(select(ServiceModel).where(ServiceModel.name == request.service_id))).scalars().first()
+                        svc = (await session.execute(select(ServiceModel).where(ServiceModel.name == request.service_id))).scalars().first()
                         if not svc:
                             raise HTTPException(status_code=404, detail="Service or account not found")
                         target_service = svc
                         # pick any active account that can support given end_date
-                        accounts = (await db.execute(select(ServiceAccount).where(ServiceAccount.service_id == svc.id, ServiceAccount.is_active == True))).scalars().all()
+                        accounts = (await session.execute(select(ServiceAccount).where(ServiceAccount.service_id == svc.id, ServiceAccount.is_active == True))).scalars().all()
                         new_end_dt = _parse_date(request.end_date)
                         new_end_d = new_end_dt.date() if hasattr(new_end_dt, "date") else new_end_dt
                         for acc in accounts:
@@ -91,7 +328,7 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
                 if not sa:
                     raise HTTPException(status_code=404, detail="Account not found")
                 assigned_account = sa
-                target_service = (await db.execute(select(ServiceModel).where(ServiceModel.id == sa.service_id))).scalars().first()
+                target_service = (await session.execute(select(ServiceModel).where(ServiceModel.id == sa.service_id))).scalars().first()
                 new_end_dt = _parse_date(request.end_date)
                 new_end_d = new_end_dt.date() if hasattr(new_end_dt, "date") else new_end_dt
                 days = max(0, (new_end_d - today_d).days)
@@ -115,7 +352,7 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
                 raise HTTPException(status_code=400, detail="Insufficient credits")
 
             # Find existing active subscription for this service
-            existing = (await db.execute(select(UserSubscription).where(UserSubscription.user_id == user.id, UserSubscription.service_id == target_service.id, UserSubscription.is_active == True))).scalars().first()
+            existing = (await session.execute(select(UserSubscription).where(UserSubscription.user_id == user.id, UserSubscription.service_id == target_service.id, UserSubscription.is_active == True))).scalars().first()
             if existing:
                 current_end_d = existing.end_date
                 base_d = current_end_d if current_end_d and current_end_d > today_d else today_d
@@ -146,10 +383,17 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
                     duration_key=request.duration or "",
                     total_duration_days=days,
                 )
-                db.add(us)
+                session.add(us)
 
             user.credits = (user.credits or 0) - cost_to_deduct
-            await db.commit()
+
+            # Commit with precise error handling
+            try:
+                await session.commit()
+            except (IntegrityError, DBAPIError) as e:
+                await session.rollback()
+                raise HTTPException(status_code=400, detail="Invalid subscription request") from e
+
             return {
                 "message": f"Assigned subscription to {request.username}",
                 "credits": user.credits,
@@ -160,20 +404,36 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
                 "credits_deducted": cost_to_deduct,
                 "remaining_credits": user.credits,
             }
-    except Exception as e:
-        logger.error(f"Error assigning subscription: {e}")
-        raise HTTPException(status_code=400, detail="Failed to assign subscription")
+
+        except HTTPException:
+            # Surface the HTTP error
+            raise
+        except Exception as e:
+            try:
+                if session is not None:
+                    await session.rollback()
+            finally:
+                pass
+            logger.exception("Error assigning subscription")
+            raise HTTPException(status_code=500, detail="Failed to assign subscription") from e
 
 async def add_credits_to_user(request: AdminAddCredits, current_user: User, db: AsyncSession = None):
     try:
+        if settings.USE_MONGO:
+            mdb = get_mongo_db()
+            if mdb is None:
+                raise HTTPException(status_code=500, detail="Mongo not available")
+            res = await mdb.users.update_one({"username": request.username}, {"$inc": {"credits": int(request.credits)}})
+            if res.matched_count == 0:
+                raise HTTPException(status_code=404, detail="User not found")
+            doc = await mdb.users.find_one({"username": request.username}, {"credits": 1})
+            return {"message": f"Added {request.credits} credits to {request.username}", "credits": int((doc or {}).get("credits", 0))}
         async with get_or_use_session(db) as db:
             user = (await db.execute(select(UserModel).where(UserModel.username == request.username))).scalars().first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
             if hasattr(request, 'service_id') and request.service_id:
-                # Per-subscription credits are not supported post-normalization
                 raise HTTPException(status_code=400, detail="Per-subscription credits are not supported")
-            else:
                 user.credits = (user.credits or 0) + request.credits
                 await db.commit()
                 return {"message": f"Added {request.credits} credits to {request.username}", "credits": user.credits}
@@ -183,13 +443,23 @@ async def add_credits_to_user(request: AdminAddCredits, current_user: User, db: 
 
 async def remove_credits_from_user(request: AdminRemoveCredits, current_user: User, db: AsyncSession = None):
     try:
+        if settings.USE_MONGO:
+            mdb = get_mongo_db()
+            if mdb is None:
+                raise HTTPException(status_code=500, detail="Mongo not available")
+            doc = await mdb.users.find_one({"username": request.username}, {"credits": 1})
+            if not doc:
+                raise HTTPException(status_code=404, detail="User not found")
+            current = int(doc.get("credits", 0))
+            new_val = max(0, current - int(request.credits))
+            await mdb.users.update_one({"username": request.username}, {"$set": {"credits": new_val}})
+            return {"message": f"Removed {request.credits} credits from {request.username}", "credits": new_val}
         async with get_or_use_session(db) as db:
             user = (await db.execute(select(UserModel).where(UserModel.username == request.username))).scalars().first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
             if hasattr(request, 'service_id') and request.service_id:
                 raise HTTPException(status_code=400, detail="Per-subscription credits are not supported")
-            else:
                 current = user.credits or 0
                 user.credits = max(0, current - request.credits)
                 await db.commit()
@@ -200,6 +470,16 @@ async def remove_credits_from_user(request: AdminRemoveCredits, current_user: Us
 
 async def remove_user_subscription(request: AdminRemoveSubscription, current_user: User, db: AsyncSession = None):
     try:
+        if settings.USE_MONGO:
+            mdb = get_mongo_db()
+            if mdb is None:
+                raise HTTPException(status_code=500, detail="Mongo not available")
+            q_user = {"username": request.username}
+            q_or = [{"account_id": request.service_id}, {"service_name": request.service_id}]
+            res = await mdb.subscriptions.delete_many({"$and": [q_user, {"$or": q_or}]})
+            if res.deleted_count == 0:
+                raise HTTPException(status_code=404, detail="Subscription not found")
+            return {"message": f"Removed subscription(s) for {request.username}", "removed": int(res.deleted_count)}
         async with get_or_use_session(db) as db:
             user = (await db.execute(select(UserModel).where(UserModel.username == request.username))).scalars().first()
             if not user:
@@ -220,14 +500,12 @@ async def remove_user_subscription(request: AdminRemoveSubscription, current_use
                     svc = (await db.execute(select(ServiceModel).where(ServiceModel.name == request.service_id))).scalars().first()
                     if svc:
                         subs_q = subs_q.where(UserSubscription.service_id == svc.id)
-            subs = (await db.execute(subs_q)).scalars().all()
+            subs = (await db.execute(subs_q.with_only_columns(UserSubscription.id))).scalars().all()
             if not subs:
                 raise HTTPException(status_code=404, detail="Subscription not found")
-            removed = 0
-            for s in subs:
-                await db.delete(s)
-                removed += 1
-            await db.commit()
+            removed = len(subs)
+            await db.execute(UserSubscription.__table__.delete().where(UserSubscription.id.in_(subs)))
+            await safe_commit(db, client_error_message="Invalid service delete request", server_error_message="Internal server error")
             return {"message": f"Removed subscription(s) for {request.username}", "removed": removed}
     except Exception as e:
         logger.error(f"Error removing user subscription: {e}")
@@ -235,6 +513,22 @@ async def remove_user_subscription(request: AdminRemoveSubscription, current_use
 
 async def update_user_subscription_end_date(request: AdminUpdateSubscriptionEndDate, current_user: User, db: AsyncSession = None):
     try:
+        if settings.USE_MONGO:
+            mdb = get_mongo_db()
+            if mdb is None:
+                raise HTTPException(status_code=500, detail="Mongo not available")
+            # Normalize to date-only string dd/mm/YYYY
+            try:
+                new_end_dt = _parse_date(request.end_date)
+                new_end_str = _format_date(new_end_dt)
+            except Exception:
+                new_end_str = request.end_date
+            q_user = {"username": request.username}
+            q_or = [{"account_id": request.service_id}, {"service_name": request.service_id}]
+            res = await mdb.subscriptions.update_one({"$and": [q_user, {"$or": q_or}]}, {"$set": {"end_date": new_end_str}})
+            if res.matched_count == 0:
+                raise HTTPException(status_code=404, detail="Subscription not found")
+            return {"message": "Updated end date", "end_date": new_end_str}
         async with get_or_use_session(db) as db:
             user = (await db.execute(select(UserModel).where(UserModel.username == request.username))).scalars().first()
             if not user:
@@ -262,14 +556,15 @@ async def update_user_subscription_end_date(request: AdminUpdateSubscriptionEndD
             active = [s for s in subs if s.is_active]
             target = active[0] if active else max(subs, key=lambda s: (s.end_date or _parse_date("01/01/1900")))
             new_end = _parse_date(request.end_date)
+            # keep date-only
             target.end_date = new_end.date() if hasattr(new_end, "date") else new_end
             try:
                 from datetime import datetime
                 target.is_active = (datetime.combine(target.end_date, datetime.min.time()) - datetime.now()).days >= 0 if target.end_date else False
             except Exception:
                 pass
-            await db.commit()
-            return {"message": f"Updated end date", "end_date": request.end_date}
+            await safe_commit(db, client_error_message="Invalid remove subscription request", server_error_message="Internal server error")
+            return {"message": "Updated end date", "end_date": _format_date(new_end)}
     except Exception as e:
         logger.error(f"Error updating subscription end date: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -298,7 +593,7 @@ async def update_user_subscription_active(request: AdminUpdateSubscriptionActive
                 raise HTTPException(status_code=404, detail="Subscription not found")
             for s in subs:
                 s.is_active = bool(request.is_active)
-            await db.commit()
+            await safe_commit(db, client_error_message="Invalid end date update", server_error_message="Internal server error")
             return {"message": f"Updated is_active", "is_active": request.is_active}
     except HTTPException:
         raise
@@ -308,6 +603,45 @@ async def update_user_subscription_active(request: AdminUpdateSubscriptionActive
 
 async def get_all_users(current_user: User, page: int = 1, size: int = 20, search: str = None, db: AsyncSession = None):
     try:
+        if settings.USE_MONGO:
+            mdb = get_mongo_db()
+            if mdb is None:
+                raise HTTPException(status_code=500, detail="Mongo not available")
+            page = max(1, int(page or 1))
+            size = max(1, int(size or 20))
+            filter_q = {}
+            if search and search.strip():
+                rx = {"$regex": search.strip(), "$options": "i"}
+                filter_q = {"$or": [{"username": rx}, {"email": rx}]}
+            total = await mdb.users.count_documents(filter_q)
+            cursor = (
+                mdb.users.find(filter_q, {"_id": 0, "username": 1, "email": 1, "role": 1, "credits": 1})
+                .sort("username", 1)
+                .skip((page - 1) * size)
+                .limit(size)
+            )
+            items = await cursor.to_list(length=size)
+            usernames = [u["username"] for u in items]
+            subs_counts = {}
+            if usernames:
+                pipeline = [
+                    {"$match": {"username": {"$in": usernames}}},
+                    {"$group": {"_id": "$username", "count": {"$sum": 1}}},
+                ]
+                async for row in mdb.subscriptions.aggregate(pipeline):
+                    subs_counts[row["_id"]] = int(row.get("count", 0))
+            users = []
+            for u in items:
+                users.append({
+                    "username": u.get("username", ""),
+                    "email": u.get("email", ""),
+                    "role": u.get("role", "user"),
+                    "credits": int(u.get("credits", 0)),
+                    "services_count": int(subs_counts.get(u.get("username", ""), 0)),
+                })
+            total_pages = max(1, (total + size - 1) // size)
+            return {"users": users, "page": page, "size": size, "total": total, "total_pages": total_pages}
+        # SQL fallback
         async with get_or_use_session(db) as db:
             filters = None
             if search:
@@ -326,7 +660,6 @@ async def get_all_users(current_user: User, page: int = 1, size: int = 20, searc
             users = []
             if items:
                 user_ids = [u.id for u in items]
-                # Batch count subscriptions per user for current page
                 counts_rows = await db.execute(
                     select(UserSubscription.user_id, func.count(UserSubscription.id))
                     .where(UserSubscription.user_id.in_(user_ids))
@@ -352,6 +685,35 @@ async def get_all_users(current_user: User, page: int = 1, size: int = 20, searc
 
 async def get_all_admin_services(current_user: User, page: int = 1, size: int = 20, search: str = None, db: AsyncSession = None):
     try:
+        if settings.USE_MONGO:
+            mdb = get_mongo_db()
+            if mdb is None:
+                raise HTTPException(status_code=500, detail="Mongo not available")
+            page = max(1, int(page or 1))
+            size = max(1, int(size or 20))
+            filter_q = {}
+            if search and search.strip():
+                filter_q = {"name": {"$regex": search.strip(), "$options": "i"}}
+            total = await mdb.services.count_documents(filter_q)
+            cursor = (
+                mdb.services.find(filter_q, {"_id": 0, "name": 1, "image": 1, "accounts": 1})
+                .sort("name", 1)
+                .skip((page - 1) * size)
+                .limit(size)
+            )
+            items = await cursor.to_list(length=size)
+            services = []
+            for svc in items:
+                accounts = svc.get("accounts") or []
+                sanitized = [{"id": a.get("account_id"), "is_active": bool(a.get("is_active", True))} for a in accounts]
+                services.append({
+                    "name": svc.get("name", ""),
+                    "image": svc.get("image", ""),
+                    "accounts": sanitized,
+                })
+            total_pages = max(1, (total + size - 1) // size)
+            return {"services": services, "page": page, "size": size, "total": total, "total_pages": total_pages}
+        # SQL fallback
         async with get_or_use_session(db) as db:
             filters = None
             if search:
@@ -370,7 +732,6 @@ async def get_all_admin_services(current_user: User, page: int = 1, size: int = 
             services = []
             if items:
                 service_ids = [s.id for s in items]
-                # Batch fetch accounts for current page of services
                 acc_rows_result = await db.execute(
                     select(ServiceAccount).where(ServiceAccount.service_id.in_(service_ids))
                 )
@@ -417,7 +778,7 @@ async def update_service_credits(service_name: str, credits_map: dict, current_u
             to_delete = [row for key, row in existing_map.items() if key not in (credits_map or {})]
             for row in to_delete:
                 await db.delete(row)
-            await db.commit()
+            await safe_commit(db, client_error_message="Invalid active flag update", server_error_message="Internal server error")
             # Return updated map
             updated_rows = (await db.execute(select(ServiceDurationCredit).where(ServiceDurationCredit.service_id == svc.id))).scalars().all()
             return {"message": f"Updated credits for {service_name}", "service_credits": {r.duration_key: r.credits for r in updated_rows}}
@@ -442,6 +803,38 @@ async def add_service(service_data: dict, current_user: User, db: AsyncSession =
         service_name = service_data.get("name")
         if not service_name:
             raise HTTPException(status_code=400, detail="Service name is required")
+        if settings.USE_MONGO:
+            mdb = get_mongo_db()
+            if mdb is None:
+                raise HTTPException(status_code=500, detail="Mongo not available")
+            existing_service = await mdb.services.find_one({"name": service_name})
+            if existing_service:
+                raise HTTPException(status_code=400, detail="Service already exists")
+            # Build service document
+            accounts = []
+            for acc in (service_data.get("accounts") or []):
+                accounts.append({
+                    "account_id": acc.get("id", ""),
+                    "password_hash": acc.get("password", "") or "",
+                    "end_date": acc.get("end_date", "") or "",
+                    "is_active": bool(acc.get("is_active", True)),
+                })
+            credits_in = service_data.get("credits") or {}
+            credits = {}
+            for k, v in credits_in.items():
+                try:
+                    credits[k] = int(v)
+                except Exception:
+                    credits[k] = 0
+            doc = {
+                "name": service_name,
+                "image": service_data.get("image", ""),
+                "accounts": accounts,
+                "credits": credits,
+                "is_active": True,
+            }
+            await mdb.services.insert_one(doc)
+            return {"message": f"Service {service_name} added successfully"}
         async with get_or_use_session(db) as db:
             existing_service = (await db.execute(select(ServiceModel).where(ServiceModel.name == service_name))).scalars().first()
             if existing_service:
@@ -451,7 +844,7 @@ async def add_service(service_data: dict, current_user: User, db: AsyncSession =
                 image=service_data.get("image", ""),
             )
             db.add(svc)
-            await db.commit()
+            await safe_commit(db, client_error_message="Invalid add service request", server_error_message="Internal server error")
             # We need the service id
             svc = (await db.execute(select(ServiceModel).where(ServiceModel.name == service_name))).scalars().first()
             # Create accounts in normalized table
@@ -488,6 +881,57 @@ async def add_service(service_data: dict, current_user: User, db: AsyncSession =
 
 async def update_service(service_name: str, service_data: dict, current_user: User, db: AsyncSession = None):
     try:
+        if settings.USE_MONGO:
+            mdb = get_mongo_db()
+            if mdb is None:
+                raise HTTPException(status_code=500, detail="Mongo not available")
+            svc = await mdb.services.find_one({"name": service_name})
+            if not svc:
+                raise HTTPException(status_code=404, detail="Service not found")
+
+            update_doc = {}
+            # Basic fields
+            if "name" in service_data:
+                update_doc["name"] = service_data.get("name") or svc.get("name")
+            if "image" in service_data:
+                update_doc["image"] = service_data.get("image", "")
+
+            # Accounts upsert
+            if "accounts" in service_data:
+                incoming_accounts = service_data.get("accounts") or []
+                current_accounts = svc.get("accounts") or []
+                by_ext = { (a or {}).get("account_id"): (a or {}) for a in current_accounts }
+                incoming_ext_ids = set()
+                merged_accounts = []
+                for acc in incoming_accounts:
+                    ext_id = acc.get("id", "")
+                    incoming_ext_ids.add(ext_id)
+                    existing = by_ext.get(ext_id, {})
+                    merged = {
+                        "account_id": ext_id,
+                        "password_hash": acc.get("password", existing.get("password_hash", "")) or "",
+                        "end_date": acc.get("end_date", existing.get("end_date", "")) or "",
+                        "is_active": bool(acc.get("is_active", existing.get("is_active", True))),
+                    }
+                    merged_accounts.append(merged)
+                # Keep existing accounts that are not in incoming only if you want to retain; spec suggests remove
+                update_doc["accounts"] = merged_accounts
+
+            # Credits upsert/replace
+            if "credits" in service_data:
+                credits_map = service_data.get("credits") or {}
+                sanitized = {}
+                for k, v in credits_map.items():
+                    try:
+                        sanitized[k] = int(v)
+                    except Exception:
+                        sanitized[k] = 0
+                update_doc["credits"] = sanitized
+
+            if update_doc:
+                await mdb.services.update_one({"_id": svc["_id"]}, {"$set": update_doc})
+            return {"message": f"Service {update_doc.get('name', service_name)} updated successfully"}
+
         async with get_or_use_session(db) as db:
             existing_service = (await db.execute(select(ServiceModel).where(ServiceModel.name == service_name))).scalars().first()
             if not existing_service:
@@ -526,7 +970,7 @@ async def update_service(service_name: str, service_data: dict, current_user: Us
                 for ext_id, row in current_by_ext.items():
                     if ext_id not in incoming_ext_ids:
                         await db.delete(row)
-                await db.commit()
+                await safe_commit(db, client_error_message="Invalid update service request", server_error_message="Internal server error")
             # Upsert credits in normalized table if provided
             if "credits" in service_data:
                 credits_map = service_data.get("credits") or {}
@@ -552,22 +996,39 @@ async def update_service(service_name: str, service_data: dict, current_user: Us
 
 async def delete_service(service_name: str, current_user: User, db: AsyncSession = None):
     try:
+        if settings.USE_MONGO:
+            mdb = get_mongo_db()
+            if mdb is None:
+                raise HTTPException(status_code=500, detail="Mongo not available")
+            svc = await mdb.services.find_one({"name": service_name})
+            if not svc:
+                raise HTTPException(status_code=404, detail="Service not found")
+            # Delete user subscriptions for this service name
+            subs_res = await mdb.subscriptions.delete_many({"service_name": service_name})
+            # Delete the service document
+            await mdb.services.delete_one({"_id": svc["_id"]})
+            return {
+                "message": f"Service {service_name} deleted successfully",
+                "users_updated": int(subs_res.deleted_count or 0),
+                "account_ids_removed": []
+            }
         async with get_or_use_session(db) as db:
             service = (await db.execute(select(ServiceModel).where(ServiceModel.name == service_name))).scalars().first()
             if not service:
                 raise HTTPException(status_code=404, detail="Service not found")
             # Delete user_subscriptions for this service
-            subs = (await db.execute(select(UserSubscription).where(UserSubscription.service_id == service.id))).scalars().all()
-            removed = 0
-            for s in subs:
-                await db.delete(s)
-                removed += 1
+            # Bulk delete subscriptions for this service
+            subs = (await db.execute(select(UserSubscription.id).where(UserSubscription.service_id == service.id))).scalars().all()
+            removed = len(subs)
+            if subs:
+                await db.execute(
+                    UserSubscription.__table__.delete().where(UserSubscription.id.in_(subs))
+                )
             # Delete service accounts for this service
-            accs = (await db.execute(select(ServiceAccount).where(ServiceAccount.service_id == service.id))).scalars().all()
-            for acc in accs:
-                await db.delete(acc)
+            # Bulk delete service accounts
+            await db.execute(ServiceAccount.__table__.delete().where(ServiceAccount.service_id == service.id))
             await db.delete(service)
-            await db.commit()
+            await safe_commit(db, client_error_message="Invalid credits update", server_error_message="Internal server error")
             return {
                 "message": f"Service {service_name} deleted successfully",
                 "users_updated": removed,
@@ -581,11 +1042,33 @@ async def delete_service(service_name: str, current_user: User, db: AsyncSession
 
 async def get_service_details(service_name: str, current_user: User, db: AsyncSession = None):
     try:
+        if settings.USE_MONGO:
+            mdb = get_mongo_db()
+            if mdb is None:
+                raise HTTPException(status_code=500, detail="Mongo not available")
+            svc = await mdb.services.find_one({"name": service_name})
+            if not svc:
+                raise HTTPException(status_code=404, detail="Service not found")
+            def _fmt_date_str(s):
+                return s or ""
+            accounts = [{
+                "id": (a or {}).get("account_id", ""),
+                "password": (a or {}).get("password_hash", ""),
+                "end_date": _fmt_date_str((a or {}).get("end_date", "")),
+                "is_active": bool((a or {}).get("is_active", True))
+            } for a in (svc.get("accounts") or [])]
+            credits = svc.get("credits", {})
+            return {
+                "service_name": service_name,
+                "name": svc.get("name", service_name),
+                "image": svc.get("image", ""),
+                "accounts": accounts,
+                "credits": credits,
+            }
         async with get_or_use_session(db) as db:
             service = (await db.execute(select(ServiceModel).where(ServiceModel.name == service_name))).scalars().first()
             if not service:
                 raise HTTPException(status_code=404, detail="Service not found")
-            # accounts from normalized table (include fields needed for editing)
             acc_rows = (await db.execute(select(ServiceAccount).where(ServiceAccount.service_id == service.id))).scalars().all()
             def _fmt_date(d):
                 try:
@@ -613,6 +1096,38 @@ async def get_service_details(service_name: str, current_user: User, db: AsyncSe
 
 async def get_user_subscriptions_admin(username: str, current_user: User, db: AsyncSession = None):
     try:
+        if settings.USE_MONGO:
+            mdb = get_mongo_db()
+            if mdb is None:
+                raise HTTPException(status_code=500, detail="Mongo not available")
+            user = await mdb.users.find_one({"username": username})
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            subs_cursor = mdb.subscriptions.find({"username": username})
+            subs = await subs_cursor.to_list(length=1000)
+            subscriptions = []
+            for s in subs:
+                svc_name = s.get("service_name", "")
+                svc = await mdb.services.find_one({"name": svc_name}, {"image": 1, "accounts": 1})
+                image = (svc or {}).get("image", "")
+                acc_id = s.get("account_id")
+                acc_pw = ""
+                if svc and acc_id:
+                    for a in (svc.get("accounts") or []):
+                        if (a or {}).get("account_id") == acc_id:
+                            acc_pw = (a or {}).get("password_hash", "")
+                            break
+                subscriptions.append({
+                    "service_name": svc_name,
+                    "service_image": image,
+                    "account_id": acc_id,
+                    "password": acc_pw,
+                    "end_date": s.get("end_date", ""),
+                    "is_active": bool(s.get("is_active", True)),
+                    "credits": int(s.get("total_duration_days", 0)),
+                })
+            return {"username": username, "credits": int(user.get("credits", 0)), "subscriptions": subscriptions}
+        # SQL fallback
         async with get_or_use_session(db) as db:
             user = (await db.execute(select(UserModel).where(UserModel.username == username))).scalars().first()
             if not user:

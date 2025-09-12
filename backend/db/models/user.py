@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Boolean, DateTime
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Index
 from sqlalchemy.sql import func
 from sqlalchemy.types import JSON
 from db.session import Base
@@ -20,3 +20,6 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_active = Column(Boolean, default=True, nullable=False)
+    __table_args__ = (
+        Index("ix_users_username_email", "username", "email"),
+    )

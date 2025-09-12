@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 20
     DB_POOL_RECYCLE: int = 300
     DB_POOL_TIMEOUT: int = 10
+    DB_PRE_PING: bool = True
+    DB_COMPILED_CACHE_SIZE: int = 256
     
     # CORS settings
     ALLOWED_ORIGINS: List[str] = [
@@ -50,6 +52,11 @@ class Settings(BaseSettings):
     # SMTP_FROM_EMAIL: str = None
     # SMTP_FROM_NAME: str = "Valuesubs"
     # SMTP_USE_TLS: bool = True
+
+    # MongoDB (optional)
+    USE_MONGO: bool = True
+    MONGO_URI: str = None
+    MONGO_DB: str = "percy_ecomm"
     
     class Config:
         env_file = ".env"

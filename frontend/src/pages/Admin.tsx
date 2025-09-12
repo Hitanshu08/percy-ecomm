@@ -110,7 +110,6 @@ export default function Admin() {
     if (sSize) setServicesPageSize(sSize);
     if (uPage) setUsersPage(uPage);
     if (uSize) setUsersPageSize(uSize);
-    console.log('Loaded pagination from localStorage...', sPage, sSize, uPage, uSize);
   }, []);
 
   useEffect(() => {
@@ -122,7 +121,6 @@ export default function Admin() {
         const sSize = Number(localStorage.getItem('admin_services_page_size') || 5);
         const uPage = Number(localStorage.getItem('admin_users_page') || 1);
         const uSize = Number(localStorage.getItem('admin_users_page_size') || 5);
-        console.log('Fetching services and users (init)...', sPage, sSize, uPage, uSize);
         await Promise.all([
           getAdminServices(sPage || servicesPage, sSize || servicesPageSize, servicesSearch).then((servicesData: any) => {
             const sPayload: any = servicesData;
@@ -250,7 +248,6 @@ export default function Admin() {
         setUsersLoading(true);
         setUsers([]);
       }
-      console.log('Fetching users...', usersPageSize, usersPage, usersSearch);
       const usersData = await getAdminUsers(usersPage, usersPageSize, usersSearch);
       const uPayload: any = usersData;
       setUsers((uPayload as any).users || (uPayload as any) || []);
@@ -368,13 +365,21 @@ export default function Admin() {
       const result: any = await adminAddSubscription(selectedUser, selectedService, selectedDuration);
       const message = `Success! ${result.message}`;
       alert(message);
-      if (selectedUser && expandedUser === selectedUser) {
-        await fetchUserSubscriptions(selectedUser);
+      // Do only ONE follow-up: refresh the users list
+      await fetchUsers(true);
+      // Also, if the expanded user is the same, collapse the panel to avoid stale content without extra API calls
+      if (expandedUser && expandedUser === selectedUser) {
+        setExpandedUser(null);
+        setUserSubs(null);
+        setSubsByUser(prev => {
+          const next = { ...prev } as any;
+          delete next[selectedUser];
+          return next;
+        });
       }
       setSelectedUser('');
       setSelectedService('');
       setSelectedDuration('');
-      await fetchUsers(true);
     } catch (error: any) {
       try {
         console.error('Error adding subscription:', error);
@@ -1150,8 +1155,24 @@ export default function Admin() {
                                         const ddmmyyyy = formatDateForDisplay(iso);
                                         try {
                                           await updateUserSubscriptionEndDate(userSubs.username, s.account_id, ddmmyyyy);
-                                          const data = await getAdminUserSubscriptions(userSubs.username);
-                                          setUserSubs(data);
+                                          // Do only ONE follow-up: refresh the users list
+                                          await fetchUsers(true);
+                                          // Update visible panel locally to avoid extra API calls
+                                          setUserSubs((prev: any) => prev ? ({
+                                            ...prev,
+                                            subscriptions: (prev.subscriptions || []).map((sub: any) =>
+                                              sub.account_id === s.account_id ? { ...sub, end_date: ddmmyyyy } : sub
+                                            )
+                                          }) : prev);
+                                          setSubsByUser(prev => ({
+                                            ...prev,
+                                            [userSubs.username]: prev[userSubs.username] ? ({
+                                              ...prev[userSubs.username],
+                                              subscriptions: (prev[userSubs.username].subscriptions || []).map((sub: any) =>
+                                                sub.account_id === s.account_id ? { ...sub, end_date: ddmmyyyy } : sub
+                                              )
+                                            }) : prev[userSubs.username]
+                                          }));
                                           setShowEndDateEdit(prev => ({ ...prev, [s.account_id]: false }));
                                           setEndDateEdits(prev => ({ ...prev, [s.account_id]: '' }));
                                           alert('End date updated');
@@ -1181,8 +1202,20 @@ export default function Admin() {
                                     if (!confirm(`Remove subscription ${s.account_id} from ${userSubs.username}?`)) return;
                                     try {
                                       await removeUserSubscription(userSubs.username, s.account_id);
-                                      const data = await getAdminUserSubscriptions(userSubs.username);
-                                      setUserSubs(data);
+                                      // Do only ONE follow-up: refresh the users list
+                                      await fetchUsers(true);
+                                      // Update visible panel locally to avoid extra API calls
+                                      setUserSubs((prev: any) => prev ? ({
+                                        ...prev,
+                                        subscriptions: (prev.subscriptions || []).filter((sub: any) => sub.account_id !== s.account_id)
+                                      }) : prev);
+                                      setSubsByUser(prev => ({
+                                        ...prev,
+                                        [userSubs.username]: prev[userSubs.username] ? ({
+                                          ...prev[userSubs.username],
+                                          subscriptions: (prev[userSubs.username].subscriptions || []).filter((sub: any) => sub.account_id !== s.account_id)
+                                        }) : prev[userSubs.username]
+                                      }));
                                       alert('Subscription removed');
                                     } catch (e) {
                                       alert('Failed to remove subscription');
