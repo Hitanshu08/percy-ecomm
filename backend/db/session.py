@@ -12,14 +12,14 @@ logger = logging.getLogger("percy_ecomm")
 def _to_async_database_url(url: str) -> str:
     if not url:
         return url
-    # Prefer asyncmy, not aiomysql
+    # Prefer aiomysql; remove asyncmy usage
     if url.startswith("mysql+pymysql://"):
-        return url.replace("mysql+pymysql://", "mysql+asyncmy://", 1)
+        return url.replace("mysql+pymysql://", "mysql+aiomysql://", 1)
     if url.startswith("mysql://"):
-        return url.replace("mysql://", "mysql+asyncmy://", 1)
-    # If someone already used aiomysql, upgrade it:
-    if url.startswith("mysql+aiomysql://"):
-        return url.replace("mysql+aiomysql://", "mysql+asyncmy://", 1)
+        return url.replace("mysql://", "mysql+aiomysql://", 1)
+    # If someone already used asyncmy, downgrade to aiomysql to avoid dependency
+    if url.startswith("mysql+asyncmy://"):
+        return url.replace("mysql+asyncmy://", "mysql+aiomysql://", 1)
     return url
 
 ASYNC_DATABASE_URL = _to_async_database_url(settings.DATABASE_URL)

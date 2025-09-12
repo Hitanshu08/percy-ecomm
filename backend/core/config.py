@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     # App settings
     APP_NAME: str = "Valuesubs E-commerce API"
     VERSION: str = "1.0.0"
-    DEBUG: bool = True
+    DEBUG: bool = False
     
     # Security settings
     SECRET_KEY: str
