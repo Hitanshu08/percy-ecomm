@@ -173,6 +173,25 @@ function serverErrorGuard(res: Response) {
 
 async function handle(res: Response) {
   serverErrorGuard(res);
+  // Generic 4xx handler: display backend-provided detail
+  if (res.status >= 400 && res.status < 500 && res.status !== 401 && res.status !== 403) {
+    try {
+      const data = await res.json();
+      const detail = (data && (data.detail || data.message)) || `${res.status}`;
+      try { alert(detail); } catch (_) {}
+      const err = new Error(detail);
+      (err as any).code = res.status;
+      (err as any).response = { status: res.status, data };
+      throw err;
+    } catch (_) {
+      const txt = await res.text();
+      try { alert(txt || `${res.status}`); } catch (_) {}
+      const err = new Error(txt || `${res.status}`);
+      (err as any).code = res.status;
+      (err as any).response = { status: res.status, data: { detail: txt } };
+      throw err;
+    }
+  }
   if (res.status === 401) {
     // Try to refresh token on 401 once, but don't redirect here
     const newToken = await refreshAccessToken();
@@ -188,7 +207,19 @@ async function handle(res: Response) {
   }
   
   if (!res.ok) {
-    throw new Error(await res.text());
+    try {
+      const data = await res.json();
+      const err = new Error((data && (data.detail || data.message)) || `${res.status}`);
+      (err as any).code = res.status;
+      (err as any).response = { status: res.status, data };
+      throw err;
+    } catch (_) {
+      const txt = await res.text();
+      const err = new Error(txt || `${res.status}`);
+      (err as any).code = res.status;
+      (err as any).response = { status: res.status, data: { detail: txt } };
+      throw err;
+    }
   }
   return res.json();
 }
@@ -229,7 +260,19 @@ export async function apiCall<T>(url: string, options: RequestInit = {}): Promis
           localStorage.removeItem('user');
           window.location.href = '/auth';
         }
-        throw new Error(await retryResponse.text());
+        try {
+          const data = await retryResponse.json();
+          const err = new Error((data && (data.detail || data.message)) || `${retryResponse.status}`);
+          (err as any).code = retryResponse.status;
+          (err as any).response = { status: retryResponse.status, data };
+          throw err;
+        } catch (_) {
+          const txt = await retryResponse.text();
+          const err = new Error(txt || `${retryResponse.status}`);
+          (err as any).code = retryResponse.status;
+          (err as any).response = { status: retryResponse.status, data: { detail: txt } };
+          throw err;
+        }
       }
       
       return retryResponse.json();
@@ -317,6 +360,32 @@ export async function forgotPassword(email: string) {
       "Expires": "0"
      },
     body: JSON.stringify({ email })
+  });
+  return handle(response);
+}
+
+export async function resetPassword(email: string, otp: string, newPassword: string) {
+  const response = await fetch(`${API_URL}/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json',
+      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+      "Pragma": "no-cache",
+      "Expires": "0"
+     },
+    body: JSON.stringify({ email, otp, new_password: newPassword })
+  });
+  return handle(response);
+}
+
+export async function verifyOtp(email: string, otp: string) {
+  const response = await fetch(`${API_URL}/verify-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json',
+      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+      "Pragma": "no-cache",
+      "Expires": "0"
+     },
+    body: JSON.stringify({ email, otp })
   });
   return handle(response);
 }

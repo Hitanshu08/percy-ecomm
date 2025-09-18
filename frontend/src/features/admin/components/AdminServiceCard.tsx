@@ -88,6 +88,7 @@ const AdminServiceCard: React.FC<AdminServiceCardProps> = ({
                 <label className="text-xs w-24 text-gray-700 dark:text-gray-300">{d.name}</label>
                 <input
                   type="number"
+                  min={1}
                   value={creditsForm[key] ?? (defaultDurationCredits[key] ?? d.credits_cost)}
                   onChange={(e) => onChangeCredit(key, Number(e.target.value))}
                   className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-xs"

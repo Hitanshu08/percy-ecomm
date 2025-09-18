@@ -210,6 +210,28 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
                     raise
                 except Exception:
                     pass
+                # If assigned account missing from service (e.g., deleted), reassign to another valid account
+                try:
+                    if account_id and not any(((a or {}).get("account_id") == account_id) for a in (service_doc.get("accounts") or [])):
+                        fallback = None
+                        for a in (service_doc.get("accounts") or []):
+                            if not (a or {}).get("is_active", True):
+                                continue
+                            end_s = (a or {}).get("end_date")
+                            if not end_s:
+                                continue
+                            try:
+                                a_end = _parse_date(end_s)
+                                if a_end and a_end >= new_end_dt2:
+                                    fallback = a
+                                    break
+                            except Exception:
+                                continue
+                        if fallback:
+                            assigned_account = fallback
+                            account_id = fallback.get("account_id")
+                except Exception:
+                    pass
                 await mdb.subscriptions.update_one(
                     {"_id": existing.get("_id")},
                     {"$set": {
@@ -809,7 +831,7 @@ async def add_service(service_data: dict, current_user: User, db: AsyncSession =
                 raise HTTPException(status_code=500, detail="Mongo not available")
             existing_service = await mdb.services.find_one({"name": service_name})
             if existing_service:
-                raise HTTPException(status_code=400, detail="Service already exists")
+                raise HTTPException(status_code=400, detail="Service name already exists")
             # Build service document
             accounts = []
             for acc in (service_data.get("accounts") or []):
@@ -820,6 +842,14 @@ async def add_service(service_data: dict, current_user: User, db: AsyncSession =
                     "is_active": bool(acc.get("is_active", True)),
                 })
             credits_in = service_data.get("credits") or {}
+            # If frontend didn't send credits (or sent empty), use defaults from config
+            if not credits_in:
+                defaults = config.get_subscription_durations() or {}
+                for key, val in defaults.items():
+                    try:
+                        credits_in[key] = int(val.get("credits_cost", 0))
+                    except Exception:
+                        credits_in[key] = 0
             credits = {}
             for k, v in credits_in.items():
                 try:
@@ -838,7 +868,7 @@ async def add_service(service_data: dict, current_user: User, db: AsyncSession =
         async with get_or_use_session(db) as db:
             existing_service = (await db.execute(select(ServiceModel).where(ServiceModel.name == service_name))).scalars().first()
             if existing_service:
-                raise HTTPException(status_code=400, detail="Service already exists")
+                raise HTTPException(status_code=400, detail="Service name already exists")
             svc = ServiceModel(
                 name=service_name,
                 image=service_data.get("image", ""),
@@ -875,6 +905,9 @@ async def add_service(service_data: dict, current_user: User, db: AsyncSession =
                 ))
             await db.commit()
             return {"message": f"Service {service_name} added successfully"}
+    except HTTPException:
+        # Preserve intended HTTP errors (e.g., 400 duplicate name)
+        raise
     except Exception as e:
         logger.error(f"Error adding service: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -892,7 +925,13 @@ async def update_service(service_name: str, service_data: dict, current_user: Us
             update_doc = {}
             # Basic fields
             if "name" in service_data:
-                update_doc["name"] = service_data.get("name") or svc.get("name")
+                new_name = service_data.get("name") or svc.get("name")
+                # If renaming, ensure uniqueness
+                if new_name and new_name != svc.get("name"):
+                    existing_same = await mdb.services.find_one({"name": new_name})
+                    if existing_same:
+                        raise HTTPException(status_code=400, detail="Service name already exists")
+                update_doc["name"] = new_name
             if "image" in service_data:
                 update_doc["image"] = service_data.get("image", "")
 
@@ -919,14 +958,20 @@ async def update_service(service_name: str, service_data: dict, current_user: Us
 
             # Credits upsert/replace
             if "credits" in service_data:
-                credits_map = service_data.get("credits") or {}
-                sanitized = {}
-                for k, v in credits_map.items():
+                incoming = service_data.get("credits") or {}
+                # Merge provided keys with defaults so missing keys get default values
+                defaults = config.get_subscription_durations() or {}
+                merged: dict = {}
+                for key, val in defaults.items():
                     try:
-                        sanitized[k] = int(v)
+                        provided = incoming.get(key, None)
+                        if provided is None:
+                            merged[key] = int(val.get("credits_cost", 0))
+                        else:
+                            merged[key] = int(provided)
                     except Exception:
-                        sanitized[k] = 0
-                update_doc["credits"] = sanitized
+                        merged[key] = int(val.get("credits_cost", 0)) if isinstance(val, dict) else 0
+                update_doc["credits"] = merged
 
             if update_doc:
                 await mdb.services.update_one({"_id": svc["_id"]}, {"$set": update_doc})
@@ -936,7 +981,14 @@ async def update_service(service_name: str, service_data: dict, current_user: Us
             existing_service = (await db.execute(select(ServiceModel).where(ServiceModel.name == service_name))).scalars().first()
             if not existing_service:
                 raise HTTPException(status_code=404, detail="Service not found")
-            existing_service.name = service_data.get("name", existing_service.name)
+            # If renaming, ensure uniqueness in SQL
+            if "name" in service_data:
+                target_name = service_data.get("name") or existing_service.name
+                if target_name != existing_service.name:
+                    conflict = (await db.execute(select(ServiceModel).where(ServiceModel.name == target_name))).scalars().first()
+                    if conflict:
+                        raise HTTPException(status_code=400, detail="Service name already exists")
+                existing_service.name = target_name
             existing_service.image = service_data.get("image", existing_service.image)
             await db.commit()
             # Upsert accounts in normalized table
@@ -990,6 +1042,9 @@ async def update_service(service_name: str, service_data: dict, current_user: Us
                         await db.delete(row)
                 await db.commit()
             return {"message": f"Service {service_name} updated successfully"}
+    except HTTPException:
+        # Preserve intended HTTP errors (e.g., 400 duplicate name)
+        raise
     except Exception as e:
         logger.error(f"Error updating service: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")

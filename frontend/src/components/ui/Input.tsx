@@ -17,6 +17,7 @@ export default function Input({
 }: InputProps) {
   const [showPassword, setShowPassword] = useState(false);
   const inputId = id || (label ? `${label.replace(/\s+/g, "-").toLowerCase()}-input` : undefined);
+  const isRequired = Boolean((props as any)?.required);
   
   const isPassword = type === "password";
   const shouldShowToggle = showPasswordToggle && isPassword;
@@ -46,6 +47,7 @@ export default function Input({
       {label ? (
         <label htmlFor={inputId} className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           {label}
+          {isRequired ? <span className="text-red-500 ml-0.5">*</span> : null}
         </label>
       ) : null}
       <div className="relative">

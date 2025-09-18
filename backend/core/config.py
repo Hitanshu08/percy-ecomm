@@ -34,24 +34,27 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "https://valuesubs.com",
         "https://www.valuesubs.com",
-        "https://devmens.com"
+        "https://api.valuesubs.com"
     ]
     
     # API settings
     API_V1_STR: str = "/api/v1"
-    API_BASE_URL: str = "https://devmens.com"
+    API_BASE_URL: str = "https://api.valuesubs.com"
     LOG_LEVEL: str = "DEBUG"
     LOG_DIR: str = "logs"
     LOG_TTL_DAYS: int = 7
     
     # SMTP / Email settings
-    # SMTP_HOST: str = None
-    # SMTP_PORT: int = 587
-    # SMTP_USERNAME: str = None
-    # SMTP_PASSWORD: str = None
-    # SMTP_FROM_EMAIL: str = None
-    # SMTP_FROM_NAME: str = "Valuesubs"
-    # SMTP_USE_TLS: bool = True
+    SMTP_HOST: str = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = None
+    SMTP_PASSWORD: str = None
+    SMTP_FROM_EMAIL: str = None
+    SMTP_FROM_NAME: str = "Valuesubs"
+    SMTP_USE_TLS: bool = True
+    SMTP_USE_SSL: bool = False
+    SMTP_TIMEOUT: int = 15
+    SMTP_DEBUG: bool = False
 
     # MongoDB (optional)
     USE_MONGO: bool = True

@@ -24,12 +24,23 @@ def send_email(subject: str, to_email: str, html_body: str, text_body: Optional[
         return False
     try:
         msg = _build_message(subject, to_email, html_body, text_body)
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            if settings.SMTP_USE_TLS:
-                server.starttls()
-            if settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
+        # SSL (SMTPS) or STARTTLS
+        timeout = getattr(settings, 'SMTP_TIMEOUT', 15) or 15
+        debug = 1 if getattr(settings, 'SMTP_DEBUG', False) else 0
+        if getattr(settings, 'SMTP_USE_SSL', False):
+            with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=timeout) as server:
+                server.set_debuglevel(debug)
+                # if settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
                 server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-            server.send_message(msg)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=timeout) as server:
+                server.set_debuglevel(debug)
+                if settings.SMTP_USE_TLS:
+                    server.starttls()
+                if settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
+                    server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+                server.send_message(msg)
         logger.info(f"Sent email to {to_email} with subject '{subject}'")
         return True
     except Exception as exc:

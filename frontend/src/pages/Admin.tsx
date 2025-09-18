@@ -220,6 +220,19 @@ export default function Admin() {
     return 0;
   };
 
+  // Ensure credits payload includes defaults for all durations;
+  // when some keys are missing, fill them with defaults
+  const buildCreditsWithDefaults = (credits: Record<string, number> | undefined | null) => {
+    const src = credits || {};
+    const merged: Record<string, number> = {};
+    Object.entries(config.getSubscriptionDurations()).forEach(([key, d]: any) => {
+      const provided = (src as any)[key];
+      const fallback = (defaultDurationCredits as any)[key] ?? (d as any).credits_cost ?? 0;
+      merged[key] = (typeof provided === 'number' && !Number.isNaN(provided)) ? provided : Number(fallback) || 0;
+    });
+    return merged;
+  };
+
 
   const fetchServices = async (showSectionLoading: boolean = true) => {
     try {
@@ -277,7 +290,17 @@ export default function Admin() {
 
   const handleCreateService = async () => {
     try {
-      await createService(newService as any);
+      const payload = {
+        ...newService,
+        credits: buildCreditsWithDefaults((newService as any).credits),
+      } as any;
+      // Validate required fields not enforced by HTML form
+      const hasMissingEndDate = (payload.accounts || []).some((a: any) => !String(a.end_date || '').trim());
+      if (hasMissingEndDate) {
+        alert('Please provide End Date for all accounts');
+        return;
+      }
+      await createService(payload);
       alert('Service created successfully!');
       setNewService({
         name: '',
@@ -287,14 +310,24 @@ export default function Admin() {
       });
       await fetchServices(true);
     } catch (error: any) {
-      console.error('Error creating service:', error);
-      alert(`Error: ${error?.message || 'Error creating service'}`);
+      console.error('Error creating service:', JSON.parse(error.message).detail);
+      alert(`${JSON.parse(error.message).detail || 'Error: Error creating service'}`);
     }
   };
 
       const handleEditService = async (serviceName: string) => {
       try {
-        await updateService(serviceName, newService as any);
+        const payload = {
+          ...newService,
+          credits: buildCreditsWithDefaults((newService as any).credits),
+        } as any;
+        // Validate required fields not enforced by HTML form
+        const hasMissingEndDate = (payload.accounts || []).some((a: any) => !String(a.end_date || '').trim());
+        if (hasMissingEndDate) {
+          alert('Please provide End Date for all accounts');
+          return;
+        }
+        await updateService(serviceName, payload);
         alert('Service updated successfully!');
         setEditingService(null);
         setShowEditForm(false);
@@ -590,6 +623,8 @@ export default function Admin() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <Input
                   type="text"
+                  id="service-name-input"
+                  required
                   label="Service Name"
                   placeholder="Enter service name"
                   value={newService.name}
@@ -631,6 +666,7 @@ export default function Admin() {
                       <label className="text-xs w-24 text-gray-700 dark:text-gray-300">{(d as any).name}</label>
                       <input
                         type="number"
+                        min={1}
                         value={(newService as any).credits?.[key] ?? (defaultDurationCredits[key] ?? (d as any).credits_cost)}
                         onChange={(e) => setNewService(prev => ({
                           ...prev,
@@ -672,50 +708,68 @@ export default function Admin() {
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <input
-                        type="text"
-                        autoComplete="off"
-                        name="serviceAccountId"
-                        placeholder="Account ID"
-                        value={account.id}
-                        onChange={(e) => updateAccountField(index, 'id', e.target.value)}
-                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                      />
-                      <div className="relative">
+                      <div className="flex flex-col">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Account ID <span className="text-red-500">*</span>
+                        </label>
                         <input
-                          type={showPasswords[index] ? 'text' : 'password'}
+                          type="text"
                           autoComplete="off"
-                          placeholder="Password"
-                          name="serviceAccountPassword"
-                          value={account.password}
-                          onChange={(e) => updateAccountField(index, 'password', e.target.value)}
-                          className="w-full pr-10 pl-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                          name="serviceAccountId"
+                          placeholder="Account ID"
+                          required
+                          value={account.id}
+                          onChange={(e) => updateAccountField(index, 'id', e.target.value)}
+                          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
                         />
-                        <button
-                          type="button"
-                          onClick={() => setShowPasswords(prev => ({ ...prev, [index]: !prev[index] }))}
-                          className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-600 dark:text-gray-300"
-                          aria-label={showPasswords[index] ? 'Hide password' : 'Show password'}
-                        >
-                          {showPasswords[index] ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-5 0-9-4-9-7 0-1.04.363-2.008.99-2.828m3.164-2.555A9.956 9.956 0 0112 5c5 0 9 4 9 7 0 .915-.27 1.79-.756 2.571M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
-                            </svg>
-                          ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                          )}
-                        </button>
                       </div>
+                      <div className="relative flex flex-col">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Password <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showPasswords[index] ? 'text' : 'password'}
+                            autoComplete="off"
+                            placeholder="Password"
+                            name="serviceAccountPassword"
+                            required
+                            value={account.password}
+                            onChange={(e) => updateAccountField(index, 'password', e.target.value)}
+                            className="w-full pr-10 pl-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPasswords(prev => ({ ...prev, [index]: !prev[index] }))}
+                            className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-600 dark:text-gray-300"
+                            aria-label={showPasswords[index] ? 'Hide password' : 'Show password'}
+                          >
+                            {showPasswords[index] ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-5 0-9-4-9-7 0-1.04.363-2.008.99-2.828m3.164-2.555A9.956 9.956 0 0112 5c5 0 9 4 9 7 0 .915-.27 1.79-.756 2.571M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
+                              </svg>
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex flex-col">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        End Date <span className="text-red-500">*</span>
+                      </label>
                       <input
                         type="date"
+                        required
                         value={formatDateForInput(account.end_date)}
                         onChange={(e) => updateAccountField(index, 'end_date', formatDateForDisplay(e.target.value))}
                         className="w-full px-3 py-2 border border-gray-300  dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white dark:[color-scheme:dark]"
                       />
+                      </div>
                       <div className="flex items-center">
                         <Checkbox
                           checked={account.is_active}
@@ -848,6 +902,7 @@ export default function Admin() {
                                 <label className="text-xs w-24 text-gray-700 dark:text-gray-300">{(d as any).name}</label>
                                 <input
                                   type="number"
+                                  min={1}
                                   value={creditsForm[key] ?? (defaultDurationCredits[key] ?? (d as any).credits_cost)}
                                   onChange={(e) => setCreditsForm(prev => ({ ...prev, [key]: Number(e.target.value) }))}
                                   className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-xs"
@@ -1263,6 +1318,7 @@ export default function Admin() {
                 </select>
                 <input
                   type="number"
+                  min={1}
                   placeholder="Credit Amount"
                   value={creditAmount}
                   onChange={(e) => setCreditAmount(Number(e.target.value))}

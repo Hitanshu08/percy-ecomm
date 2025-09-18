@@ -128,7 +128,7 @@ ENVIRONMENT=development
 DATABASE_URL=sqlite:///./percy_ecomm.db
 
 # API Settings
-API_BASE_URL=https://devmens.com
+API_BASE_URL=https://api.valuesubs.com
 ```
 
 ### Database-Based Configuration
@@ -150,7 +150,7 @@ Contains static application settings:
     "description": "Subscription-based e-commerce platform for digital services"
   },
   "api": {
-    "base_url": "https://devmens.com",
+    "base_url": "https://api.valuesubs.com",
     "endpoints": {
       "health": "/health",
       "signup": "/signup",
@@ -218,7 +218,7 @@ Environment-specific settings:
 
 ```bash
 # API Configuration
-VITE_API_BASE_URL=https://devmens.com
+VITE_API_BASE_URL=https://api.valuesubs.com
 
 # Environment
 VITE_ENVIRONMENT=development
