@@ -277,74 +277,33 @@ async def purchase_subscription(request: SubscriptionPurchase, current_user: Use
                 acc_end_date = datetime.combine(acc_end_date, dt_time.min)
             if not acc_end_date:
                 raise HTTPException(status_code=400, detail="Invalid service account end date")
-            if existing_subscription:
-                current_end = existing_subscription.end_date
-                if isinstance(current_end, date) and not isinstance(current_end, datetime):
-                    current_end = datetime.combine(current_end, dt_time.min)
-                base_date = current_end if current_end and current_end > today else today
-                proposed_end = base_date + timedelta(days=requested_days)
-                if proposed_end > acc_end_date:
-                    # Try to reassign to another account that can satisfy the proposed end date
-                    reassigned = False
-                    for acc in available_accounts:
-                        acc_end = acc.end_date
-                        if isinstance(acc_end, date) and not isinstance(acc_end, datetime):
-                            acc_end_dt = datetime.combine(acc_end, dt_time.min)
-                        else:
-                            acc_end_dt = acc_end
-                        if acc_end_dt and acc_end_dt >= proposed_end:
-                            assigned_account = acc
-                            reassigned = True
-                            break
-                    if not reassigned:
-                        raise HTTPException(status_code=400, detail="No account can satisfy requested extension")
-                # update existing normalized subscription
-                existing_subscription.end_date = proposed_end.date()
-                existing_subscription.account_id = assigned_account.id
-                existing_subscription.duration_key = request.duration
-                existing_subscription.total_duration_days = (existing_subscription.total_duration_days or 0) + requested_days
-                # deduct credits from user
-                if (user.credits or 0) < cost_to_deduct:
-                    raise HTTPException(status_code=400, detail="Insufficient credits")
-                user.credits = (user.credits or 0) - cost_to_deduct
-                await safe_commit(_db, client_error_message="Invalid subscription request", server_error_message="Internal server error")
-                updated_credits = user.credits or 0
-                new_end_date_str = format_date(proposed_end)
-                return {
-                    "message": f"Extended {request.service_name} by {duration_config.get('name', request.duration)}",
-                    "extension": True,
-                    "new_end_date": new_end_date_str,
-                    "credits": updated_credits,
-                    "cost": cost_to_deduct,
-                }
-            else:
-                new_end_date = today + timedelta(days=requested_days)
-                if new_end_date > acc_end_date:
-                    raise HTTPException(status_code=400, detail="Requested duration exceeds account expiry")
-                # create new normalized subscription
-                us = UserSubscription(
-                    user_id=user.id,
-                    service_id=service_data.id,
-                    account_id=assigned_account.id,
-                    start_date=today.date(),
-                    end_date=new_end_date.date(),
-                    is_active=True,
-                    duration_key=request.duration,
-                    total_duration_days=requested_days,
-                )
-                _db.add(us)
-                if (user.credits or 0) < cost_to_deduct:
-                    raise HTTPException(status_code=400, detail="Insufficient credits")
-                user.credits = (user.credits or 0) - cost_to_deduct
-                await safe_commit(_db, client_error_message="Invalid subscription request", server_error_message="Internal server error")
-                updated_credits = user.credits or 0
-                return {
-                    "message": f"Purchased {duration_config.get('name', request.duration)} for {request.service_name}",
-                    "extension": False,
-                    "new_end_date": format_date(new_end_date),
-                    "credits": updated_credits,
-                    "cost": cost_to_deduct,
-                }
+            # Always create a NEW subscription so users can hold multiple accounts for the same service
+            new_end_date = today + timedelta(days=requested_days)
+            if new_end_date > acc_end_date:
+                raise HTTPException(status_code=400, detail="Requested duration exceeds account expiry")
+            us = UserSubscription(
+                user_id=user.id,
+                service_id=service_data.id,
+                account_id=assigned_account.id,
+                start_date=today.date(),
+                end_date=new_end_date.date(),
+                is_active=True,
+                duration_key=request.duration,
+                total_duration_days=requested_days,
+            )
+            _db.add(us)
+            if (user.credits or 0) < cost_to_deduct:
+                raise HTTPException(status_code=400, detail="Insufficient credits")
+            user.credits = (user.credits or 0) - cost_to_deduct
+            await safe_commit(_db, client_error_message="Invalid subscription request", server_error_message="Internal server error")
+            updated_credits = user.credits or 0
+            return {
+                "message": f"Purchased {duration_config.get('name', request.duration)} for {request.service_name}",
+                "extension": False,
+                "new_end_date": format_date(new_end_date),
+                "credits": updated_credits,
+                "cost": cost_to_deduct,
+            }
         except HTTPException:
             raise
         except Exception as e:
@@ -361,31 +320,86 @@ async def get_user_subscriptions(current_user: User, db: AsyncSession  = None):
         if mdb is None:
             return {"subscriptions": []}
         subs = await mdb.subscriptions.find({"username": current_user.username}).to_list(length=1000)
-        subscriptions = []
+        # Compute user's latest subscription end date per service and active flag per service
+        user_end_by_service: dict[str, str] = {}
+        user_active_by_service: dict[str, bool] = {}
+        now_dt = datetime.now()
         for s in subs:
-            svc = await mdb.services.find_one({"name": s.get("service_name", "")}, {"image": 1, "accounts": 1})
-            # include password for active subs if available from embedded service accounts
-            acct_pw = ""
-            acc_id = s.get("account_id")
-            if svc and acc_id:
-                for a in (svc.get("accounts") or []):
-                    if (a or {}).get("account_id") == acc_id:
-                        acct_pw = (a or {}).get("password_hash", "")
-                        break
-            subscriptions.append({
-                "service_name": s.get("service_name", ""),
+            svc_name = s.get("service_name", "")
+            if not svc_name:
+                continue
+            end_s = s.get("end_date") or ""
+            # track active flag based on end date (>= today)
+            try:
+                if end_s:
+                    end_dt = parse_date(end_s)
+                    if end_dt >= now_dt:
+                        user_active_by_service[svc_name] = True
+            except Exception:
+                pass
+            # track latest end date (string compare via parsed date)
+            if end_s:
+                try:
+                    end_dt = parse_date(end_s)
+                except Exception:
+                    # if cannot parse, set if not present
+                    if svc_name not in user_end_by_service:
+                        user_end_by_service[svc_name] = end_s
+                    continue
+                prev_s = user_end_by_service.get(svc_name)
+                if not prev_s:
+                    user_end_by_service[svc_name] = end_dt.strftime("%d/%m/%Y")
+                else:
+                    try:
+                        prev_dt = parse_date(prev_s)
+                        if end_dt > prev_dt:
+                            user_end_by_service[svc_name] = end_dt.strftime("%d/%m/%Y")
+                    except Exception:
+                        user_end_by_service[svc_name] = end_dt.strftime("%d/%m/%Y")
+        service_names = sorted({s.get("service_name", "") for s in subs if s.get("service_name")})
+        grouped: dict[str, dict] = {}
+        today_dt = datetime.now()
+        for svc_name in service_names:
+            svc = await mdb.services.find_one({"name": svc_name}, {"image": 1, "accounts": 1})
+            accounts = (svc or {}).get("accounts") or []
+            # Map all service accounts, regardless of user assignment
+            mapped_accounts = []
+            for a in accounts:
+                acc_id = (a or {}).get("account_id", "")
+                pw = (a or {}).get("password_hash", "")
+                end_s = (a or {}).get("end_date", "")
+                is_active = bool((a or {}).get("is_active", True))
+                mapped_accounts.append({
+                    "account_id": acc_id,
+                    **({"account_password": pw} if pw else {}),
+                    "end_date": end_s,
+                    "is_active": is_active,
+                })
+            # Determine inclusion and whether to show credentials
+            user_end = user_end_by_service.get(svc_name, "")
+            user_active = bool(user_active_by_service.get(svc_name, False))
+            include_service = True
+            show_credentials = user_active
+            if not user_active and user_end:
+                try:
+                    end_dt = parse_date(user_end)
+                    days_since = (today_dt - end_dt).days
+                    if days_since > 7:
+                        include_service = False
+                except Exception:
+                    pass
+            if not include_service:
+                continue
+            grouped[svc_name] = {
+                "service_name": svc_name,
                 "service_image": (svc or {}).get("image", ""),
-                "account_id": acc_id,
-                **({"account_password": acct_pw} if acct_pw else {}),
-                "end_date": s.get("end_date", ""),
-                "is_active": bool(s.get("is_active", True)),
-                "duration": s.get("duration_key", ""),
-                "total_duration": int(s.get("total_duration_days", 0)),
-                "created_date": s.get("start_date", ""),
-                "last_extension": "",
-                "extension_duration": "",
-            })
-        return {"subscriptions": subscriptions}
+                # end_date should be user's subscription end date
+                "end_date": user_end_by_service.get(svc_name, ""),
+                # is_active should reflect user's subscription activity
+                "is_active": user_active,
+                "accounts": mapped_accounts if show_credentials else [],
+            }
+        return {"subscriptions": list(grouped.values())}
     
     async with get_or_use_session(db) as _db:
         try:
@@ -397,42 +411,89 @@ async def get_user_subscriptions(current_user: User, db: AsyncSession  = None):
             service_list = (await _db.execute(select(ServiceModel))).scalars().all()
             services_by_id = {s.id: s for s in service_list}
             subs_rows = (await _db.execute(select(UserSubscription).where(UserSubscription.user_id == user_record.id))).scalars().all()
-            # Preload accounts for these subscriptions
-            account_fk_ids = [s.account_id for s in subs_rows if s.account_id]
-            accounts_by_id = {}
-            if account_fk_ids:
-                acc_rows = (await _db.execute(select(ServiceAccount).where(ServiceAccount.id.in_(account_fk_ids)))).scalars().all()
-                accounts_by_id = {a.id: a for a in acc_rows}
+            # Determine all services the user subscribed to
+            service_ids = sorted({s.service_id for s in subs_rows})
+            # Compute user's latest subscription end date per service and active flag per service
+            user_end_by_service: dict[int, str] = {}
+            user_active_by_service: dict[int, bool] = {}
+            for s in subs_rows:
+                if s.is_active:
+                    # fallback to end_date check regardless of stored flag
+                    pass
+                if s.end_date:
+                    try:
+                        prev = user_end_by_service.get(s.service_id)
+                        if not prev:
+                            user_end_by_service[s.service_id] = s.end_date.strftime("%d/%m/%Y")
+                        else:
+                            # compare parsed dates
+                            from datetime import datetime as _dt
+                            def _parse(d: str):
+                                try:
+                                    return _dt.strptime(d, "%d/%m/%Y")
+                                except Exception:
+                                    return _dt.strptime(d, "%Y-%m-%d")
+                            if s.end_date > _parse(prev):
+                                user_end_by_service[s.service_id] = s.end_date.strftime("%d/%m/%Y")
+                    except Exception:
+                        user_end_by_service[s.service_id] = s.end_date.strftime("%d/%m/%Y")
+            # recompute active flag purely from end_date >= today
+            try:
+                today_d = datetime.now().date()
+                for s in subs_rows:
+                    if s.end_date and s.end_date >= today_d:
+                        user_active_by_service[s.service_id] = True
+            except Exception:
+                pass
+            # Load ALL active accounts for those services
+            accounts_by_service: dict[int, list[ServiceAccount]] = {}
+            if service_ids:
+                acc_rows_all = (await _db.execute(select(ServiceAccount).where(ServiceAccount.service_id.in_(service_ids), ServiceAccount.is_active == True))).scalars().all()
+                for acc in acc_rows_all:
+                    accounts_by_service.setdefault(acc.service_id, []).append(acc)
             durations_map = config.get_subscription_durations()
-            subscriptions = []
-            for sub in subs_rows:
-                svc = services_by_id.get(sub.service_id)
+            grouped: dict[int, dict] = {}
+            today_dt = datetime.now()
+            for svc_id in service_ids:
+                svc = services_by_id.get(svc_id)
                 service_name = svc.name if svc else "Unknown Service"
                 service_image = svc.image if svc else "https://via.placeholder.com/300x200/6B7280/FFFFFF?text=Service"
-                total_duration_days = sub.total_duration_days or 0
-                if not total_duration_days and sub.start_date and sub.end_date:
-                    total_duration_days = max(0, (sub.end_date - sub.start_date).days)
-                is_active_flag = bool(sub.is_active)
-                end_date_str = sub.end_date.strftime("%d/%m/%Y") if sub.end_date else ""
-                acc = accounts_by_id.get(sub.account_id) if sub.account_id else None
-                acct_display_id = acc.account_id if acc else None
-                acct_username = acc.account_id if acc else ""
-                acct_password = acc.password_hash if acc else ""
-                subscriptions.append({
+                accs = accounts_by_service.get(svc_id, [])
+                mapped_accounts = []
+                for acc in accs:
+                    end_dt = acc.end_date
+                    end_str = end_dt.strftime("%d/%m/%Y") if end_dt else ""
+                    mapped_accounts.append({
+                        "account_id": acc.account_id,
+                        **({"account_password": acc.password_hash} if acc.password_hash else {}),
+                        "end_date": end_str,
+                        "is_active": bool(acc.is_active),
+                    })
+                # Determine inclusion and whether to show credentials
+                user_end = user_end_by_service.get(svc_id, "")
+                user_active = bool(user_active_by_service.get(svc_id, False))
+                include_service = True
+                show_credentials = user_active
+                if not user_active and user_end:
+                    try:
+                        end_dt = parse_date(user_end)
+                        days_since = (today_dt - end_dt).days
+                        if days_since > 7:
+                            include_service = False
+                    except Exception:
+                        pass
+                if not include_service:
+                    continue
+                grouped[svc_id] = {
                     "service_name": service_name,
                     "service_image": service_image,
-                    **({"account_id": acct_display_id} if is_active_flag and acct_display_id else {}),
-                    **({"account_username": acct_username} if is_active_flag else {}),
-                    **({"account_password": acct_password} if is_active_flag else {}),
-                    "end_date": end_date_str,
-                    "is_active": is_active_flag,
-                    "duration": sub.duration_key or "",
-                    "total_duration": total_duration_days,
-                    "created_date": sub.start_date.strftime("%d/%m/%Y") if sub.start_date else "",
-                    "last_extension": "",
-                    "extension_duration": "",
-                })
-            return {"subscriptions": subscriptions}
+                    # end_date should be user's subscription end date
+                    "end_date": user_end_by_service.get(svc_id, ""),
+                    # is_active should reflect user's subscription activity
+                    "is_active": user_active,
+                    "accounts": mapped_accounts if show_credentials else [],
+                }
+            return {"subscriptions": list(grouped.values())}
         except Exception as e:
             logger.error(f"Error getting user subscriptions: {e}")
             raise HTTPException(status_code=500, detail="Internal server error")

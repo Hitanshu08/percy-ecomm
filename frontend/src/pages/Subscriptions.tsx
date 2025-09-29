@@ -4,19 +4,11 @@ import { getSubscriptions } from "../lib/apiClient";
 import { Button } from "../components/ui";
 import Spinner from "../components/feedback/Spinner";
 import SubscriptionCard from "../components/subscriptions/SubscriptionCard";
-
-interface Subscription {
-  service_name: string;
-  service_image: string;
-  account_id: string;
-  account_password: string;
-  end_date: string;
-  is_active: boolean;
-}
+import type { SubscriptionItem, AccountCredential } from "../components/subscriptions/SubscriptionCard";
 
 export default function Subscriptions() {
   const { theme } = useTheme();
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showCredentials, setShowCredentials] = useState<{ [key: string]: boolean }>({});
@@ -30,7 +22,61 @@ export default function Subscriptions() {
     try {
       setLoading(true);
       const data = await getSubscriptions();
-      setSubscriptions((data as { subscriptions: Subscription[] }).subscriptions);
+      const raw = (data as { subscriptions: any[] }).subscriptions || [];
+      // If backend already grouped by service with accounts array
+      if (raw.length > 0 && Array.isArray(raw[0]?.accounts)) {
+        const items: SubscriptionItem[] = raw.map((r: any) => ({
+          service_name: String(r.service_name || ''),
+          service_image: String(r.service_image || ''),
+          end_date: String(r.end_date || ''),
+          is_active: Boolean(r.is_active),
+          accounts: (Array.isArray(r.accounts) ? r.accounts : []).map((a: any) => ({
+            subscription_id: a.subscription_id,
+            account_id: String(a.account_id || ''),
+            account_password: String(a.account_password || ''),
+            end_date: String(a.end_date || ''),
+            is_active: Boolean(a.is_active),
+          })) as AccountCredential[],
+        }));
+        setSubscriptions(items);
+      } else {
+        // Fallback: flat list of subscriptions -> group by service
+        const grouped = Object.values(
+          (raw as any[]).reduce((acc, sub) => {
+            const key = String(sub.service_name || '');
+            const cred: AccountCredential = {
+              subscription_id: sub.subscription_id,
+              account_id: String(sub.account_id || ''),
+              account_password: String(sub.account_password || ''),
+              end_date: String(sub.end_date || ''),
+              is_active: Boolean(sub.is_active),
+            };
+            if (!acc[key]) {
+              acc[key] = {
+                service_name: key,
+                service_image: String(sub.service_image || ''),
+                end_date: String(sub.end_date || ''),
+                is_active: Boolean(sub.is_active),
+                accounts: [cred],
+              } as SubscriptionItem;
+            } else {
+              const existing = acc[key] as SubscriptionItem;
+              existing.accounts.push(cred);
+              // choose latest end_date
+              try {
+                const [d1,m1,y1] = existing.end_date.includes('/') ? existing.end_date.split('/') : ['0','0','0'];
+                const [d2,m2,y2] = (sub.end_date || '').includes('/') ? String(sub.end_date).split('/') : ['0','0','0'];
+                const a = new Date(parseInt(y1), parseInt(m1)-1, parseInt(d1));
+                const b = new Date(parseInt(y2), parseInt(m2)-1, parseInt(d2));
+                if (b > a) existing.end_date = String(sub.end_date || '');
+              } catch {}
+              if (Boolean(sub.is_active)) existing.is_active = true;
+            }
+            return acc;
+          }, {} as { [k: string]: SubscriptionItem })
+        ) as SubscriptionItem[];
+        setSubscriptions(grouped);
+      }
     } catch (err: any) {
       setError("Failed to load subscriptions");
     } finally {
@@ -152,20 +198,16 @@ export default function Subscriptions() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {subscriptions.map((subscription) => (
+            {subscriptions.map((item) => (
               <SubscriptionCard
-                key={subscription.service_name}
-                subscription={subscription}
+                key={item.service_name}
+                subscription={item}
                 theme={theme}
                 formatDate={formatDate}
                 getStatusColor={getStatusColor}
                 getStatusText={getStatusText}
-                showCredentials={!!showCredentials[subscription.account_id]}
-                onToggleCredentials={() => toggleCredentials(subscription.account_id)}
-                showPassword={!!showPasswords[subscription.account_id]}
-                onTogglePassword={() => togglePassword(subscription.account_id)}
-                onCopyAccountId={() => copyToClipboard(subscription.account_id, 'Account ID')}
-                onCopyPassword={() => copyToClipboard(subscription.account_password, 'Password')}
+                showCredentials={!!showCredentials[item.service_name]}
+                onToggleCredentials={() => toggleCredentials(item.service_name)}
               />
             ))}
           </div>
