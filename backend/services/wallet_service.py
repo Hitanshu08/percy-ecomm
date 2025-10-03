@@ -8,8 +8,46 @@ from db.mongodb import get_mongo_db
 from fastapi import HTTPException
 import logging
 from sqlalchemy import select
+import aiohttp
+import hmac
+import hashlib
+import base64
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
+
+USD_TO_CREDITS_RATE = 1  # 1 USD = 1 credit base rate
+
+def map_bundle_to_usd_and_credits(bundle: str) -> Dict[str, int]:
+    """Return the usd amount and credits for a given bundle id.
+    Supported bundles: "1", "2", "5", "10", "20", "50" (USD),
+    with credits 1, 2, 5, 10, 21, 52 respectively.
+    """
+    mapping = {
+        "1": {"usd": 1, "credits": 1},
+        "2": {"usd": 2, "credits": 2},
+        "5": {"usd": 5, "credits": 5},
+        "10": {"usd": 10, "credits": 10},
+        "20": {"usd": 20, "credits": 21},
+        "50": {"usd": 50, "credits": 52},
+    }
+    if bundle not in mapping:
+        raise HTTPException(status_code=400, detail="Invalid bundle selected")
+    return mapping[bundle]
+
+async def create_payment_invoice(current_user: User, bundle: str) -> Dict[str, Any]:
+    # Temporarily disabled
+    raise HTTPException(status_code=503, detail="Payments are temporarily disabled")
+
+def _verify_nowpayments_signature(raw_body: bytes, signature: str) -> bool:
+    if not settings.NOWPAYMENTS_IPN_SECRET or not signature:
+        return False
+    digest = hmac.new(settings.NOWPAYMENTS_IPN_SECRET.encode("utf-8"), raw_body, hashlib.sha512).hexdigest()
+    return hmac.compare_digest(digest, signature)
+
+async def handle_payment_webhook(raw_body: bytes, headers_map: Dict[str, str]):
+    # Temporarily disabled
+    raise HTTPException(status_code=503, detail="Payments are temporarily disabled")
 
 async def get_wallet_info(current_user: User):
     """Get wallet information for the current user including per-subscription credits"""

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import HTTPException
 from schemas.user_schema import Token
 from services.user_service import login_user, request_password_reset, reset_password_with_otp, verify_password_reset_otp
 from services.service_service import refresh_access_token
@@ -11,7 +12,11 @@ router = APIRouter()
 @timeit()
 @router.post("/login", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    return no_store_json(await login_user(form_data.username, form_data.password))
+    try:
+        return no_store_json(await login_user(form_data.username, form_data.password))
+    except HTTPException as e:
+        # bubble up specific messages and status codes for client-side mapping
+        raise e
 
 @timeit()
 @router.post("/refresh", response_model=Token)

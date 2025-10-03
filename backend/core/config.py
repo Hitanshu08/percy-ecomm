@@ -34,12 +34,12 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "https://valuesubs.com",
         "https://www.valuesubs.com",
-        "https://api.valuesubs.com"
+        "http://127.0.0.1:8000"
     ]
     
     # API settings
     API_V1_STR: str = "/api/v1"
-    API_BASE_URL: str = "https://api.valuesubs.com"
+    API_BASE_URL: str = "http://127.0.0.1:8000"
     LOG_LEVEL: str = "DEBUG"
     LOG_DIR: str = "logs"
     LOG_TTL_DAYS: int = 7
@@ -61,6 +61,13 @@ class Settings(BaseSettings):
     MONGO_URI: str = None
     MONGO_DB: str = "percy_ecomm"
     
+    # Payments (NOWPayments)
+    # NOWPAYMENTS_API_KEY: str = None
+    # NOWPAYMENTS_IPN_SECRET: str = None
+    # NOWPAYMENTS_BASE_URL: str = "https://api.nowpayments.io/v1"
+    # PAYMENT_SUCCESS_URL: str = "https://valuesubs.com/wallet?payment=success"
+    # PAYMENT_CANCEL_URL: str = "https://valuesubs.com/wallet?payment=cancel"
+
     class Config:
         env_file = ".env"
         case_sensitive = True
@@ -80,4 +87,3 @@ if not settings.ADMIN_PASSWORD:
 
 if not settings.DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable is required")
-

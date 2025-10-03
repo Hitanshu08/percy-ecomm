@@ -16,6 +16,7 @@ export default function Wallet() {
   const { theme } = useTheme();
   const [walletData, setWalletData] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
+  // const [creating, setCreating] = useState<string | null>(null);
 
   useEffect(() => {
     fetchWalletData();
@@ -31,6 +32,33 @@ export default function Wallet() {
       setLoading(false);
     }
   };
+
+  // const bundles: Array<{ label: string; sub?: string; bundle: '1'|'2'|'5'|'10'|'20'|'50' }> = [
+  //   { label: '$1', sub: '1 credit', bundle: '1' },
+  //   { label: '$2', sub: '2 credits', bundle: '2' },
+  //   { label: '$5', sub: '5 credits', bundle: '5' },
+  //   { label: '$10', sub: '10 credits', bundle: '10' },
+  //   { label: '$20', sub: '21 credits', bundle: '20' },
+  //   { label: '$50', sub: '52 credits', bundle: '50' },
+  // ];
+
+  // const startPayment = async (bundle: '1'|'2'|'5'|'10'|'20'|'50') => {
+  //   try {
+  //     setCreating(bundle);
+  //     const resp = await createWalletPayment(bundle);
+  //     const url = (resp as any)?.checkout_url;
+  //     if (url) {
+  //       window.location.href = url;
+  //     } else {
+  //       alert('Failed to start payment. Please try again.');
+  //     }
+  //   } catch (e) {
+  //     console.error(e);
+  //     alert('Failed to start payment.');
+  //   } finally {
+  //     setCreating(null);
+  //   }
+  // }
 
   const handleTelegramClick = () => {
     window.open(config.getTelegramUrl(), '_blank');
@@ -124,10 +152,30 @@ export default function Wallet() {
                 </div>
               </div>
 
+              {/* Buy Credits - temporarily disabled */}
+              {/* <div className="mt-6">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                  Add Credits
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {bundles.map(({ label, sub, bundle }) => (
+                    <button
+                      key={bundle}
+                      onClick={() => startPayment(bundle)}
+                      disabled={creating === bundle}
+                      className="w-full border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-left hover:bg-blue-50 dark:hover:bg-blue-900/20 transition disabled:opacity-60"
+                    >
+                      <div className="text-lg font-semibold text-blue-700 dark:text-blue-300">{label}</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">{sub}</div>
+                    </button>
+                  ))}
+                </div>
+              </div> */}
+
               {/* Note */}
               <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  <strong>Note:</strong> Contact us on Telegram for exact pricing and to purchase credits.
+                  <strong>Note:</strong> 1 USD = 1 credit. $20 gives 21 credits. $50 gives 52 credits.
                 </p>
               </div>
             </div>

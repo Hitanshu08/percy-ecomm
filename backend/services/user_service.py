@@ -99,16 +99,23 @@ async def create_user(user: UserCreate, db: AsyncSession  = None):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 async def authenticate_user(email: str, password: str, db: AsyncSession  = None):
-    """Authenticate user and return user data"""
+    """Authenticate user and return a result distinguishing wrong-password vs not-found.
+
+    Returns one of:
+    - {"status": "ok", "user": user}
+    - {"status": "not_found"}
+    - {"status": "wrong_password"}
+    - {"status": "error"} on unexpected failure
+    """
     try:
         mongo = get_mongo_db()
         if settings.USE_MONGO and (mongo is not None):
             # Accept either email or username
             user = await mongo.users.find_one({"$or": [{"email": email}, {"username": email}]})
             if not user:
-                return None
+                return {"status": "not_found"}
             if not verify_password(password, user.get("hashed_password", "")):
-                return None
+                return {"status": "wrong_password"}
             class Obj:
                 pass
             o = Obj()
@@ -117,7 +124,7 @@ async def authenticate_user(email: str, password: str, db: AsyncSession  = None)
             o.user_id = user.get("user_id") or user["username"]
             o.role = user.get("role", "user")
             o.credits = int(user.get("credits", 0))
-            return o
+            return {"status": "ok", "user": o}
 
         async with get_or_use_session(db) as _db:
             # Accept either email or username in the OAuth2 "username" field
@@ -128,20 +135,26 @@ async def authenticate_user(email: str, password: str, db: AsyncSession  = None)
             )
             user = result.scalars().first()
             if not user:
-                return None
+                return {"status": "not_found"}
             if not verify_password(password, user.hashed_password):
-                return None
-            return user
+                return {"status": "wrong_password"}
+            return {"status": "ok", "user": user}
     except Exception as e:
         logger.error(f"Error authenticating user: {e}")
-        return None
+        return {"status": "error"}
 
 async def login_user(email: str, password: str, db: AsyncSession  = None):
     """Login user and return tokens"""
     try:
-        user = await authenticate_user(email, password, db=db)
-        if not user:
-            raise HTTPException(status_code=401, detail="Incorrect username or password")
+        result = await authenticate_user(email, password, db=db)
+        status = (result or {}).get("status") if isinstance(result, dict) else None
+        if status == "not_found":
+            raise HTTPException(status_code=404, detail="User does not exist")
+        if status == "wrong_password":
+            raise HTTPException(status_code=401, detail="Incorrect password.")
+        if status != "ok":
+            raise HTTPException(status_code=500, detail="Internal server error")
+        user = result["user"]
         
         access_token = create_access_token(
             data={"sub": user.username, "email": user.email, "user_id": (user.user_id or user.username), "role": user.role},
@@ -178,6 +191,9 @@ async def login_user(email: str, password: str, db: AsyncSession  = None):
                 "credits": user.credits,
             }
         }
+    except HTTPException:
+        # propagate intended http errors (401/404)
+        raise
     except Exception as e:
         logger.error(f"Error logging in user: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")

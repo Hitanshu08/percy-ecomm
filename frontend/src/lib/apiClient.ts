@@ -334,9 +334,26 @@ export async function login(email: string, password: string) {
      },
     body: formData
   });
-  serverErrorGuard(response);
-  
-  const data = await handle(response);
+
+  // Map precise errors
+  if (response.status === 404) {
+    let detail = 'User does not exist';
+    try { const j = await response.json(); detail = j.detail || detail; } catch {}
+    throw new Error(JSON.stringify({ code: 404, detail }));
+  }
+  if (response.status === 401) {
+    let detail = 'Incorrect password.';
+    try { const j = await response.json(); detail = j.detail || detail; } catch {}
+    throw new Error(JSON.stringify({ code: 401, detail }));
+  }
+  if (!response.ok) {
+    // Genuine server failures
+    let detail = 'Something went wrong on our side. Please try again.';
+    try { const j = await response.json(); if (j && j.detail) detail = j.detail; } catch {}
+    throw new Error(JSON.stringify({ code: response.status, detail }));
+  }
+
+  const data = await response.json();
   
   // Store tokens
   localStorage.setItem('token', data.access_token);
@@ -412,6 +429,13 @@ export async function deposit(amount: number) {
     body: JSON.stringify({ amount })
   });
 }
+
+// Temporarily disabled
+// export async function createWalletPayment(bundle: '1'|'2'|'5'|'10'|'20'|'50') {
+//   return apiCall(`${API_URL}/wallet/payment/create?bundle=${encodeURIComponent(bundle)}`, {
+//     method: 'POST'
+//   });
+// }
 
 export async function getSubscriptions() {
   return apiCall(`${API_URL}/subscriptions`);

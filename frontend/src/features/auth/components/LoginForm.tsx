@@ -48,7 +48,19 @@ export default function LoginForm({ onSwitchToSignup, onSwitchToForgotPassword }
       await authLogin(data.access_token);
       // Navigation is now handled by AuthContext
     } catch (err: any) {
-      setErrors({ general: 'Invalid email or password' });
+      // Parse our structured error, if provided
+      let message = 'Something went wrong on our side. Please try again.';
+      try {
+        const parsed = JSON.parse(err?.message || '{}');
+        if (parsed && parsed.code === 404) {
+          message = 'User does not exist';
+        } else if (parsed && parsed.code === 401) {
+          message = 'Incorrect password.';
+        }
+      } catch (_) {
+        // keep default server-side error message
+      }
+      setErrors({ general: message });
     } finally {
       setIsLoading(false);
     }
