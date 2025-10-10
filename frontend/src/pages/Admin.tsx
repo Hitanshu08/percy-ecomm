@@ -1126,7 +1126,6 @@ export default function Admin() {
                                       <div className="break-words"><span className="font-medium">Service:</span> {s.service_name}</div>
                                       <div className="break-words"><span className="font-medium">Account:</span> {s.account_id}</div>
                                       <div className="break-words"><span className="font-medium">End Date:</span> {s.end_date}</div>
-                                      <div className="break-words"><span className="font-medium">Active:</span> {s.is_active ? 'Yes' : 'No'}</div>
                                     </div>
                                   </div>
                                 ))}
@@ -1183,7 +1182,6 @@ export default function Admin() {
                               <div className='break-words'><span className="font-medium">Service:</span> {s.service_name}</div>
                               <div className='break-words'><span className="font-medium">Account:</span> {s.account_id}</div>
                               <div className='break-words'><span className="font-medium">End Date:</span> {s.end_date}</div>
-                              <div className='break-words'><span className="font-medium">Active:</span> {s.is_active ? 'Yes' : 'No'}</div>
                               <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-2 md:col-span-3">
                                 {!showEndDateEdit[s.account_id] ? (
                                   <button

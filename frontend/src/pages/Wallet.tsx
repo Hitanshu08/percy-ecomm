@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { getWallet } from '../lib/apiClient';
+import { getWallet, createWalletPayment, createPaypalOrder, capturePaypalOrder } from '../lib/apiClient';
 import { config } from '../config/index';
 import { Button } from '../components/ui';
-import { Spinner } from '../components/feedback';
+import { Spinner, Modal } from '../components/feedback';
 import { WalletCard } from '../features/wallet/components';
 
 interface WalletData {
@@ -16,10 +16,22 @@ export default function Wallet() {
   const { theme } = useTheme();
   const [walletData, setWalletData] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
-  // const [creating, setCreating] = useState<string | null>(null);
+  const [creating, setCreating] = useState<string | null>(null);
+  const [provider, setProvider] = useState<'nowpayments' | 'paypal'>('paypal');
+  const [selectedBundle, setSelectedBundle] = useState<'1'|'2'|'5'|'10'|'20'|'50' | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalTitle, setModalTitle] = useState<string | undefined>(undefined);
+  const [modalMessage, setModalMessage] = useState<string | undefined>(undefined);
+
+  const openModal = (title?: string, message?: string) => {
+    setModalTitle(title);
+    setModalMessage(message);
+    setModalOpen(true);
+  };
 
   useEffect(() => {
     fetchWalletData();
+    handlePayPalReturn();
   }, []);
 
   const fetchWalletData = async () => {
@@ -33,32 +45,68 @@ export default function Wallet() {
     }
   };
 
-  // const bundles: Array<{ label: string; sub?: string; bundle: '1'|'2'|'5'|'10'|'20'|'50' }> = [
-  //   { label: '$1', sub: '1 credit', bundle: '1' },
-  //   { label: '$2', sub: '2 credits', bundle: '2' },
-  //   { label: '$5', sub: '5 credits', bundle: '5' },
-  //   { label: '$10', sub: '10 credits', bundle: '10' },
-  //   { label: '$20', sub: '21 credits', bundle: '20' },
-  //   { label: '$50', sub: '52 credits', bundle: '50' },
-  // ];
+  const handlePayPalReturn = async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const paypalStatus = urlParams.get('paypal');
+    
+    if (paypalStatus === 'success' && token) {
+      try {
+        setLoading(true);
+        const result = await capturePaypalOrder(token);
+        if ((result as any)?.status === 'success') {
+          openModal('Payment Successful', (result as any)?.message || 'Credits added to your wallet.');
+          await fetchWalletData();
+          // Clean URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      } catch (error) {
+        console.error('PayPal capture error:', error);
+        openModal('Payment Error', 'Failed to process payment. Please contact support.');
+      } finally {
+        setLoading(false);
+      }
+    } else if (paypalStatus === 'cancel') {
+      openModal('Payment Cancelled', 'Payment was cancelled.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  };
 
-  // const startPayment = async (bundle: '1'|'2'|'5'|'10'|'20'|'50') => {
-  //   try {
-  //     setCreating(bundle);
-  //     const resp = await createWalletPayment(bundle);
-  //     const url = (resp as any)?.checkout_url;
-  //     if (url) {
-  //       window.location.href = url;
-  //     } else {
-  //       alert('Failed to start payment. Please try again.');
-  //     }
-  //   } catch (e) {
-  //     console.error(e);
-  //     alert('Failed to start payment.');
-  //   } finally {
-  //     setCreating(null);
-  //   }
-  // }
+  const bundles: Array<{ label: string; sub?: string; bundle: '1'|'2'|'5'|'10'|'20'|'50' }> = [
+    { label: '$1', sub: '1 credit', bundle: '1' },
+    { label: '$2', sub: '2 credits', bundle: '2' },
+    { label: '$5', sub: '5 credits', bundle: '5' },
+    { label: '$10', sub: '10 credits', bundle: '10' },
+    { label: '$20', sub: '21 credits', bundle: '20' },
+    { label: '$50', sub: '52 credits', bundle: '50' },
+  ];
+
+  const startPayment = async (bundle: '1'|'2'|'5'|'10'|'20'|'50') => {
+    try {
+      setCreating(bundle);
+      if (provider === 'paypal') {
+        const resp = await createPaypalOrder(bundle);
+        const url = (resp as any)?.approve_url;
+        if (url) {
+          window.location.href = url;
+          return;
+        }
+      } else {
+        const resp = await createWalletPayment(bundle);
+        const url = (resp as any)?.checkout_url;
+        if (url) {
+          window.location.href = url;
+          return;
+        }
+      }
+      openModal('Payment Error', 'Failed to start payment. Please try again.');
+    } catch (e) {
+      console.error(e);
+      openModal('Payment Error', 'Failed to start payment.');
+    } finally {
+      setCreating(null);
+    }
+  }
 
   const handleTelegramClick = () => {
     window.open(config.getTelegramUrl(), '_blank');
@@ -73,6 +121,9 @@ export default function Wallet() {
   return (
     <div className="flex-1 bg-gray-50 dark:bg-gray-900 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={modalTitle}>
+          <p className="text-gray-700 dark:text-gray-200">{modalMessage}</p>
+        </Modal>
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
@@ -140,6 +191,11 @@ export default function Wallet() {
                 </p>
               </div>
 
+              {/* Provider toggle */}
+              <div className="mb-4 flex gap-3">
+                <button className={`px-3 py-2 rounded border bg-blue-600 text-white cursor-default`}>PayPal</button>
+              </div>
+
               {/* Simple Conversion Display */}
               <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6">
                 <div className="text-center">
@@ -152,8 +208,8 @@ export default function Wallet() {
                 </div>
               </div>
 
-              {/* Buy Credits - temporarily disabled */}
-              {/* <div className="mt-6">
+              {/* Buy Credits */}
+              <div className="mt-6">
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
                   Add Credits
                 </h3>
@@ -161,16 +217,31 @@ export default function Wallet() {
                   {bundles.map(({ label, sub, bundle }) => (
                     <button
                       key={bundle}
-                      onClick={() => startPayment(bundle)}
-                      disabled={creating === bundle}
-                      className="w-full border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-left hover:bg-blue-50 dark:hover:bg-blue-900/20 transition disabled:opacity-60"
+                      onClick={() => setSelectedBundle(bundle)}
+                      disabled={creating !== null}
+                      className={`w-full border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-left hover:bg-blue-50 dark:hover:bg-blue-900/20 transition disabled:opacity-60 ${selectedBundle===bundle ? 'ring-2 ring-blue-500' : ''}`}
                     >
                       <div className="text-lg font-semibold text-blue-700 dark:text-blue-300">{label}</div>
                       <div className="text-sm text-gray-600 dark:text-gray-400">{sub}</div>
                     </button>
                   ))}
                 </div>
-              </div> */}
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    onClick={async () => {
+                      if (!selectedBundle) {
+                        openModal('Select amount', 'Please select an amount to continue.');
+                        return;
+                      }
+                      await startPayment(selectedBundle);
+                    }}
+                    disabled={!selectedBundle || creating !== null}
+                    variant="primary"
+                  >
+                    {creating ? 'Processing…' : 'Continue to PayPal'}
+                  </Button>
+                </div>
+              </div>
 
               {/* Note */}
               <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">

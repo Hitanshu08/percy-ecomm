@@ -430,12 +430,23 @@ export async function deposit(amount: number) {
   });
 }
 
-// Temporarily disabled
-// export async function createWalletPayment(bundle: '1'|'2'|'5'|'10'|'20'|'50') {
-//   return apiCall(`${API_URL}/wallet/payment/create?bundle=${encodeURIComponent(bundle)}`, {
-//     method: 'POST'
-//   });
-// }
+export async function createWalletPayment(bundle: '1'|'2'|'5'|'10'|'20'|'50') {
+  return apiCall(`${API_URL}/wallet/payment/create?bundle=${encodeURIComponent(bundle)}`, {
+    method: 'POST'
+  });
+}
+
+export async function createPaypalOrder(bundle: '1'|'2'|'5'|'10'|'20'|'50') {
+  return apiCall(`${API_URL}/wallet/payment/paypal/create?bundle=${encodeURIComponent(bundle)}`, {
+    method: 'POST'
+  });
+}
+
+export async function capturePaypalOrder(orderId: string) {
+  return apiCall(`${API_URL}/wallet/payment/paypal/capture?order_id=${encodeURIComponent(orderId)}`, {
+    method: 'POST'
+  });
+}
 
 export async function getSubscriptions() {
   return apiCall(`${API_URL}/subscriptions`);
