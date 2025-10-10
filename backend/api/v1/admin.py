@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
-from schemas.user_schema import AdminAssignSubscription, AdminAddCredits, AdminRemoveCredits, AdminRemoveSubscription, AdminUpdateSubscriptionEndDate, AdminUpdateSubscriptionActive, User
+from schemas.user_schema import AdminAssignSubscription, AdminAddCredits, AdminRemoveCredits, AdminRemoveSubscription, AdminUpdateSubscriptionEndDate, User
 from api.dependencies import admin_required_fast
 from db.session import get_db_session
 from sqlalchemy.ext.asyncio import AsyncSession
-from services.admin_service_async import assign_subscription, add_credits_to_user, remove_credits_from_user, remove_user_subscription, update_user_subscription_end_date, update_user_subscription_active, get_all_users, get_all_admin_services, add_service, update_service, delete_service, get_service_details, get_user_subscriptions_admin, update_service_credits, get_service_credits_admin
+from services.admin_service_async import assign_subscription, add_credits_to_user, remove_credits_from_user, remove_user_subscription, update_user_subscription_end_date, get_all_users, get_all_admin_services, add_service, update_service, delete_service, get_service_details, get_user_subscriptions_admin, update_service_credits, get_service_credits_admin
 from utils.responses import no_store_json
 from utils.timing import timeit
 
@@ -68,10 +68,6 @@ async def admin_remove_subscription(request: AdminRemoveSubscription, current_us
 async def admin_update_subscription_end_date(request: AdminUpdateSubscriptionEndDate, current_user: User = Depends(admin_required_fast), db: AsyncSession = Depends(get_db_session)):
     return no_store_json(await update_user_subscription_end_date(request, current_user, db))      
 
-@timeit()
-@router.post("/admin/users/update-subscription-active")
-async def admin_update_subscription_active(request: AdminUpdateSubscriptionActive, current_user: User = Depends(admin_required_fast), db: AsyncSession = Depends(get_db_session)):
-    return no_store_json(await update_user_subscription_active(request, current_user, db))
 
 @timeit()
 @router.get("/admin/services/{service_name}/credits")

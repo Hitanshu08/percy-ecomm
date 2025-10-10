@@ -34,12 +34,12 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "https://valuesubs.com",
         "https://www.valuesubs.com",
-        "http://127.0.0.1:8000"
+        "https://api.valuesubs.com"
     ]
     
     # API settings
     API_V1_STR: str = "/api/v1"
-    API_BASE_URL: str = "http://127.0.0.1:8000"
+    API_BASE_URL: str = "https://api.valuesubs.com"
     LOG_LEVEL: str = "DEBUG"
     LOG_DIR: str = "logs"
     LOG_TTL_DAYS: int = 7
@@ -62,11 +62,22 @@ class Settings(BaseSettings):
     MONGO_DB: str = "percy_ecomm"
     
     # Payments (NOWPayments)
-    # NOWPAYMENTS_API_KEY: str = None
-    # NOWPAYMENTS_IPN_SECRET: str = None
-    # NOWPAYMENTS_BASE_URL: str = "https://api.nowpayments.io/v1"
-    # PAYMENT_SUCCESS_URL: str = "https://valuesubs.com/wallet?payment=success"
-    # PAYMENT_CANCEL_URL: str = "https://valuesubs.com/wallet?payment=cancel"
+    NOWPAYMENTS_ENABLED: bool = True
+    NOWPAYMENTS_API_KEY: str = None
+    NOWPAYMENTS_IPN_SECRET: str = None
+    NOWPAYMENTS_BASE_URL: str = "https://api.nowpayments.io/v1"
+    # NOWPAYMENTS_BASE_URL: str = "https://api-sandbox.nowpayments.io/v1"
+    NOWPAYMENTS_PAY_CURRENCY: str = 'SHIBBSC'
+    PAYMENT_SUCCESS_URL: str = "http://localhost:5173/wallet?payment=success"
+    PAYMENT_CANCEL_URL: str = "http://localhost:5173/wallet?payment=cancel"
+
+    # PayPal (Sandbox by default)
+    PAYPAL_CLIENT_ID: str = None
+    PAYPAL_CLIENT_SECRET: str = None
+    PAYPAL_API_BASE: str = "https://api-m.sandbox.paypal.com"
+    PAYPAL_CURRENCY: str = "USD"
+    PAYPAL_RETURN_URL: str = "http://localhost:5173/wallet?paypal=success"
+    PAYPAL_CANCEL_URL: str = "http://localhost:5173/wallet?paypal=cancel"
 
     class Config:
         env_file = ".env"

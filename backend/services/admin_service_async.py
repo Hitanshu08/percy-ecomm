@@ -1151,6 +1151,10 @@ async def get_service_details(service_name: str, current_user: User, db: AsyncSe
 
 async def get_user_subscriptions_admin(username: str, current_user: User, db: AsyncSession = None):
     try:
+        # Normalize username to avoid trailing/leading spaces from URL encoding
+        username = (username or "").strip()
+        if not username:
+            raise HTTPException(status_code=400, detail="Username is required")
         if settings.USE_MONGO:
             mdb = get_mongo_db()
             if mdb is None:
@@ -1163,25 +1167,11 @@ async def get_user_subscriptions_admin(username: str, current_user: User, db: As
             subscriptions = []
             for s in subs:
                 svc_name = s.get("service_name", "")
-                svc = await mdb.services.find_one({"name": svc_name}, {"image": 1, "accounts": 1})
-                image = (svc or {}).get("image", "")
-                acc_id = s.get("account_id")
-                acc_pw = ""
-                if svc and acc_id:
-                    for a in (svc.get("accounts") or []):
-                        if (a or {}).get("account_id") == acc_id:
-                            acc_pw = (a or {}).get("password_hash", "")
-                            break
                 subscriptions.append({
                     "service_name": svc_name,
-                    "service_image": image,
-                    "account_id": acc_id,
-                    "password": acc_pw,
                     "end_date": s.get("end_date", ""),
-                    "is_active": bool(s.get("is_active", True)),
-                    "credits": int(s.get("total_duration_days", 0)),
                 })
-            return {"username": username, "credits": int(user.get("credits", 0)), "subscriptions": subscriptions}
+            return {"credits": int(user.get("credits", 0)), "subscriptions": subscriptions}
         # SQL fallback
         async with get_or_use_session(db) as db:
             user = (await db.execute(select(UserModel).where(UserModel.username == username))).scalars().first()
@@ -1198,17 +1188,11 @@ async def get_user_subscriptions_admin(username: str, current_user: User, db: As
                 acc_map = {a.id: a for a in acc_rows}
             for sub in subs:
                 svc = services_by_id.get(sub.service_id)
-                acc = acc_map.get(sub.account_id) if sub.account_id else None
                 subscriptions.append({
                     "service_name": svc.name if svc else "",
-                    "service_image": svc.image if svc else "",
-                    "account_id": acc.account_id if acc else None,
-                    "password": acc.password_hash if acc else "",
                     "end_date": sub.end_date.strftime("%d/%m/%Y") if sub.end_date else "",
-                    "is_active": bool(sub.is_active),
-                    "credits": sub.total_duration_days or 0,
                 })
-            return {"username": username, "credits": user.credits, "subscriptions": subscriptions}
+            return {"credits": user.credits, "subscriptions": subscriptions}
     except Exception as e:
         logger.error(f"Error getting user subscriptions (admin): {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
