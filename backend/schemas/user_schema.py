@@ -56,8 +56,8 @@ class AdminRemoveSubscription(BaseModel):
     service_id: str  # subscription's service_id (account id)
 
 class AdminUpdateSubscriptionEndDate(BaseModel):
-    username: str
-    service_id: str
+    username: Optional[str] = None
+    service_id: Optional[str] = None
     end_date: str  # dd/mm/yyyy
 
 class AdminUpdateSubscriptionActive(BaseModel):

@@ -335,6 +335,12 @@ def remove_user_subscription(request: AdminRemoveSubscription, current_user: Use
 
 def update_user_subscription_end_date(request: AdminUpdateSubscriptionEndDate, current_user: User):
     """Update the end date of a user's subscription (expects dd/mm/yyyy)"""
+    # Validate required fields
+    if not request.username:
+        raise HTTPException(status_code=400, detail="username field is required")
+    if not request.service_id:
+        raise HTTPException(status_code=400, detail="service_id field is required")
+    
     try:
         db = get_db_session()
         try:

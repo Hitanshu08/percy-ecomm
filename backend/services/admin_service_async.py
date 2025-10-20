@@ -534,6 +534,12 @@ async def remove_user_subscription(request: AdminRemoveSubscription, current_use
         raise HTTPException(status_code=500, detail="Internal server error")
 
 async def update_user_subscription_end_date(request: AdminUpdateSubscriptionEndDate, current_user: User, db: AsyncSession = None):
+    # Validate required fields
+    if not request.username:
+        raise HTTPException(status_code=400, detail="username field is required")
+    if not request.service_id:
+        raise HTTPException(status_code=400, detail="service_id field is required")
+    
     try:
         if settings.USE_MONGO:
             mdb = get_mongo_db()
@@ -1169,9 +1175,10 @@ async def get_user_subscriptions_admin(username: str, current_user: User, db: As
                 svc_name = s.get("service_name", "")
                 subscriptions.append({
                     "service_name": svc_name,
+                    "account_id": s.get("account_id", ""),
                     "end_date": s.get("end_date", ""),
                 })
-            return {"credits": int(user.get("credits", 0)), "subscriptions": subscriptions}
+            return {"username": username, "credits": int(user.get("credits", 0)), "subscriptions": subscriptions}
         # SQL fallback
         async with get_or_use_session(db) as db:
             user = (await db.execute(select(UserModel).where(UserModel.username == username))).scalars().first()
@@ -1188,11 +1195,13 @@ async def get_user_subscriptions_admin(username: str, current_user: User, db: As
                 acc_map = {a.id: a for a in acc_rows}
             for sub in subs:
                 svc = services_by_id.get(sub.service_id)
+                acc = acc_map.get(sub.account_id)
                 subscriptions.append({
                     "service_name": svc.name if svc else "",
+                    "account_id": acc.account_id if acc else "",
                     "end_date": sub.end_date.strftime("%d/%m/%Y") if sub.end_date else "",
                 })
-            return {"credits": user.credits, "subscriptions": subscriptions}
+            return {"username": username, "credits": user.credits, "subscriptions": subscriptions}
     except Exception as e:
         logger.error(f"Error getting user subscriptions (admin): {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
