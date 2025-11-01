@@ -56,6 +56,19 @@ async def init_mongo_indexes():
             # Users
             await db.users.create_index("username", unique=True, name="u_username")
             await db.users.create_index("email", unique=True, name="u_email")
+            # Create sparse unique index for referral_code (only indexes non-null values, automatically excludes null/missing)
+            # Sparse index is simpler and more reliable than partial index for this use case
+            try:
+                await db.users.create_index("referral_code", unique=True, sparse=True, name="u_referral_code")
+            except Exception as e:
+                logger.warning(f"Could not create sparse index for referral_code: {e}")
+                # Try to drop existing conflicting index first
+                try:
+                    await db.users.drop_index("u_referral_code")
+                    await db.users.create_index("referral_code", unique=True, sparse=True, name="u_referral_code")
+                except Exception as e2:
+                    logger.error(f"Failed to create referral_code index even after drop: {e2}")
+            await db.users.create_index("referred_by_user_id", name="i_referred_by")
             # Services
             await db.services.create_index("name", unique=True, name="u_service_name")
             # Subscriptions
@@ -64,6 +77,14 @@ async def init_mongo_indexes():
             # Refresh tokens
             await db.refresh_tokens.create_index("token", unique=True, name="u_token")
             await db.refresh_tokens.create_index("username", name="i_rt_username")
+            # Referral credits
+            try:
+                await db.referral_credits.create_index([("referrer_user_id", 1), ("referred_user_id", 1)], unique=True, name="u_referrer_referred")
+                await db.referral_credits.create_index("referrer_user_id", name="i_referrer")
+                await db.referral_credits.create_index("referred_user_id", name="i_referred")
+            except Exception as e:
+                # Collection might not exist yet, that's okay
+                logger.debug(f"Could not create referral_credits indexes (collection may not exist yet): {e}")
             return
         except Exception as e:
             wait_s = min(2 ** attempt, 15)

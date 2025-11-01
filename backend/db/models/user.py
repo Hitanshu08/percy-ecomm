@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Index
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Index, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.types import JSON
 from db.session import Base
@@ -20,6 +20,12 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_active = Column(Boolean, default=True, nullable=False)
+    referral_code = Column(String(8), unique=True, index=True, nullable=True)
+    referred_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    email_verified = Column(Boolean, default=False, nullable=False)
+    email_verification_token = Column(String(255), nullable=True)
+    email_verification_token_expires = Column(DateTime(timezone=True), nullable=True)
     __table_args__ = (
         Index("ix_users_username_email", "username", "email"),
+        Index("ix_users_referral_code", "referral_code"),
     )

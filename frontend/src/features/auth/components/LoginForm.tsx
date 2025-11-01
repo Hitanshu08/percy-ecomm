@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { login } from '../../../lib/apiClient';
+import { useNavigate } from 'react-router-dom';
+import { login, resendVerificationEmail } from '../../../lib/apiClient';
 import Input from '../../../components/ui/Input';
 import Button from '../../../components/ui/Button';
 
@@ -17,8 +18,11 @@ export default function LoginForm({ onSwitchToSignup, onSwitchToForgotPassword }
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [emailNotVerified, setEmailNotVerified] = useState(false);
+  const [resendingVerification, setResendingVerification] = useState(false);
   const { login: authLogin } = useAuth();
   const { theme } = useTheme();
+  const navigate = useNavigate();
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -43,11 +47,19 @@ export default function LoginForm({ onSwitchToSignup, onSwitchToForgotPassword }
     if (!validateForm()) return;
 
     setIsLoading(true);
+    setEmailNotVerified(false);
     try {
       const data = await login(formData.email, formData.password);
       await authLogin(data.access_token);
       // Navigation is now handled by AuthContext
     } catch (err: any) {
+      // Check if it's an email verification error (403)
+      if (err?.response?.status === 403 || err?.code === 403) {
+        setEmailNotVerified(true);
+        setErrors({ general: err?.response?.data?.detail || 'Please verify your email before logging in.' });
+        return;
+      }
+      
       // Parse our structured error, if provided
       let message = 'Something went wrong on our side. Please try again.';
       try {
@@ -70,6 +82,27 @@ export default function LoginForm({ onSwitchToSignup, onSwitchToForgotPassword }
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+    if (emailNotVerified) {
+      setEmailNotVerified(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!formData.email) {
+      setErrors({ general: 'Please enter your email address first.' });
+      return;
+    }
+    
+    setResendingVerification(true);
+    try {
+      await resendVerificationEmail(formData.email);
+      setErrors({ general: 'Verification email sent! Please check your inbox.' });
+      setEmailNotVerified(false);
+    } catch (err: any) {
+      setErrors({ general: err?.response?.data?.detail || 'Failed to resend verification email. Please try again.' });
+    } finally {
+      setResendingVerification(false);
     }
   };
 
@@ -117,8 +150,28 @@ export default function LoginForm({ onSwitchToSignup, onSwitchToForgotPassword }
           </div>
 
           {errors.general && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-              {errors.general}
+            <div className={`px-4 py-3 rounded ${emailNotVerified ? 'bg-yellow-100 border border-yellow-400 text-yellow-700' : 'bg-red-100 border border-red-400 text-red-700'}`}>
+              <p className="mb-2">{errors.general}</p>
+              {emailNotVerified && (
+                <div className="mt-3 space-y-2">
+                  <Button
+                    type="button"
+                    onClick={handleResendVerification}
+                    disabled={resendingVerification}
+                    variant="secondary"
+                    className="w-full text-sm"
+                  >
+                    {resendingVerification ? 'Sending...' : 'Resend Verification Email'}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/verify-email')}
+                    className="text-sm text-blue-600 hover:text-blue-700 underline w-full block text-center"
+                  >
+                    Go to Verification Page
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

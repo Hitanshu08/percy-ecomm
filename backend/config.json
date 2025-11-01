@@ -29,11 +29,6 @@
     "usd_to_credits_rate": 1
   },
   "subscription_durations": {
-    "7days": {
-      "name": "7 Days",
-      "days": 7,
-      "credits_cost": 50
-    },
     "1month": {
       "name": "1 Month",
       "days": 30,
@@ -57,21 +52,18 @@
   },
   "service_credits": {
     "Quillbot": {
-      "7days": 100,
       "1month": 500,
       "3months": 1200,
       "6months": 2000,
       "1year": 3500
     },
     "Grammarly": {
-      "7days": 80,
       "1month": 400,
       "3months": 1000,
       "6months": 1800,
       "1year": 3000
     },
     "ChatGPT": {
-      "7days": 150,
       "1month": 600,
       "3months": 1500,
       "6months": 2500,
@@ -105,5 +97,8 @@
   "logging": {
     "level": "INFO",
     "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  },
+  "referral": {
+    "credit_amount": 1
   }
 } 

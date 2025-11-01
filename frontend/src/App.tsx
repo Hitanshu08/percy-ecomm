@@ -19,6 +19,7 @@ import AccessDenied from "./pages/AccessDenied";
 import NotFound from "./pages/NotFound";
 import TermsAndConditions from "./components/TermsAndConditions";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
+import EmailVerification from "./pages/EmailVerification";
 
 // Admin Route Component
 function AdminRoute({ children }: { children: React.ReactNode }) {
@@ -65,6 +66,7 @@ export default function App() {
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<AuthPage />} />
+            <Route path="/verify-email" element={<EmailVerification />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/*" element={<ProtectedRoute><AppLayout /></ProtectedRoute>} />
           </Routes>

@@ -17,11 +17,6 @@
     "usd_to_credits_rate": 1
   },
   "subscription_durations": {
-    "7days": {
-      "name": "7 Days",
-      "days": 7,
-      "credits_cost": 1
-    },
     "1month": {
       "name": "1 Month",
       "days": 30,

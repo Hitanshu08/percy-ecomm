@@ -11,8 +11,7 @@ interface Service {
   image: string;
   available_accounts: number;
   total_accounts: number;
-  max_days_until_expiry: number;
-  max_end_date: string;
+  available: boolean;
   credits?: Record<string, number>;
   user_end_date?: string; // added from backend to determine extension
 }
@@ -21,7 +20,7 @@ const Shop: React.FC = () => {
   const { user } = useAuth();
   const { callApi } = useApi();
   const [services, setServices] = useState<Service[]>([]);
-  const [selectedDuration, setSelectedDuration] = useState('7days');
+  const [selectedDuration, setSelectedDuration] = useState('1month');
   const [purchasing, setPurchasing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: string; text: string } | null>(null);
@@ -81,63 +80,23 @@ const Shop: React.FC = () => {
     } as any;
   };
 
-  // Get available duration options for a service based on account expiry dates and existing subscription
+  // Get available duration options - always show all options
   const getAvailableDurations = (service: Service) => {
-    if (service.available_accounts === 0) {
-      return [];
-    }
-
     const currentSub = service.user_end_date ? getCurrentSubscriptionInfo(service.name) : null;
     const subscriptionDurations = config.getSubscriptionDurations();
     
-    if (currentSub) {
-      // Extension logic - user can only extend existing subscription
-      const currentEndDate = parseDate(currentSub!.end_date);
-      const accountEndDate = parseDate(service.max_end_date);
-      const today = new Date();
-      
-      // Calculate maximum extension days possible
-      const maxExtensionDays = Math.floor((accountEndDate.getTime() - currentEndDate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      if (maxExtensionDays <= 0) {
-        return []; // No extension possible
-      }
-      
-      // Filter durations that are within the possible extension range
-      const availableDurations = Object.entries(subscriptionDurations)
-        .filter(([key, duration]) => {
-          return duration.days <= maxExtensionDays;
-        })
-        .map(([key, duration]) => ({
-          value: key,
-          label: `${duration.name} (Extension)`,
-          days: duration.days,
-          credits_cost: service.credits?.[key] ?? duration.credits_cost,
-          extension: true
-        }))
-        .sort((a, b) => a.days - b.days);
-      
-      return availableDurations;
-    } else {
-      // New subscription logic
-      const maxAvailableDays = service.max_days_until_expiry;
-      
-      // Filter durations that are within the available time range
-      const availableDurations = Object.entries(subscriptionDurations)
-        .filter(([key, duration]) => {
-          return duration.days <= maxAvailableDays;
-        })
-        .map(([key, duration]) => ({
-          value: key,
-          label: duration.name,
-          days: duration.days,
-          credits_cost: service.credits?.[key] ?? duration.credits_cost,
-          extension: false
-        }))
-        .sort((a, b) => a.days - b.days);
-      
-      return availableDurations;
-    }
+    // Always return all subscription durations
+    const allDurations = Object.entries(subscriptionDurations)
+      .map(([key, duration]) => ({
+        value: key,
+        label: currentSub ? `${duration.name} (Extension)` : duration.name,
+        days: duration.days,
+        credits_cost: service.credits?.[key] ?? duration.credits_cost,
+        extension: !!currentSub
+      }))
+      .sort((a, b) => a.days - b.days);
+    
+    return allDurations;
   };
 
   const handlePurchase = async (serviceName: string) => {
@@ -174,7 +133,7 @@ const Shop: React.FC = () => {
       
       // Refresh data to update availability
       fetchData();
-      setSelectedDuration("7days");
+      setSelectedDuration("1month");
     } catch (error: any) {
       console.error('Error purchasing subscription:', error);
       setMessage({
@@ -256,7 +215,7 @@ const Shop: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {services.map((service) => {
             const availableDurations = getAvailableDurations(service);
-            const hasAvailableOptions = availableDurations.length > 0;
+            const isServiceAvailable = service.available ?? (service.available_accounts > 0);
             const hasExistingSubscription = hasSubscription(service.name);
             const currentSubInfo = getCurrentSubscriptionInfo(service.name);
             
@@ -271,6 +230,7 @@ const Shop: React.FC = () => {
                 onChangeDuration={(val) => setSelectedDuration(val)}
                 onPurchase={(name) => handlePurchase(name)}
                 purchasing={purchasing}
+                isAvailable={isServiceAvailable}
               />
             );
           })}

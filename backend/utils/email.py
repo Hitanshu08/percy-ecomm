@@ -63,3 +63,28 @@ def send_otp_email(to_email: str, otp_code: str) -> bool:
     return send_email(subject, to_email, html, text)
 
 
+def send_verification_email(to_email: str, verification_token: str, base_url: Optional[str] = None) -> bool:
+    """Send email verification link to user"""
+    if base_url is None:
+        base_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+    
+    verification_url = f"{base_url}/verify-email?token={verification_token}"
+    subject = "Verify your email address"
+    text = f"Please verify your email by clicking this link: {verification_url}"
+    html = f"""
+    <div style='font-family: Arial, sans-serif; line-height: 1.5;'>
+      <h2>Verify your email address</h2>
+      <p>Thank you for signing up! Please verify your email address by clicking the link below:</p>
+      <p style='margin: 20px 0;'>
+        <a href="{verification_url}" style='background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;'>Verify Email</a>
+      </p>
+      <p>Or copy and paste this link into your browser:</p>
+      <p style='word-break: break-all; color: #666;'>{verification_url}</p>
+      <p>This link will expire in <strong>24 hours</strong>.</p>
+      <p>If you did not create an account, you can safely ignore this email.</p>
+      <p>— {settings.SMTP_FROM_NAME or 'Valuesubs'} Team</p>
+    </div>
+    """
+    return send_email(subject, to_email, html, text)
+
+

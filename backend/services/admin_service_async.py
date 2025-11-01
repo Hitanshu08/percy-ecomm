@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import settings
 from db.mongodb import get_mongo_db
 from utils.db import safe_commit
+from services.referral_service import check_and_award_referral_credit
 
 logger = logging.getLogger(__name__)
 
@@ -253,7 +254,7 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
                         raise
                     except Exception:
                         pass
-                await mdb.subscriptions.insert_one({
+                new_sub = {
                     "username": request.username,
                     "service_name": service_name,
                     "account_id": account_id,
@@ -262,10 +263,16 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
                     "is_active": True,
                     "duration_key": request.duration or "",
                     "total_duration_days": int(days),
-                })
+                }
+                result = await mdb.subscriptions.insert_one(new_sub)
 
             # Deduct credits
             await mdb.users.update_one({"username": request.username}, {"$inc": {"credits": -int(cost_to_deduct)}})
+            
+            # Check and award referral credit if this is user's first subscription
+            user_doc = await mdb.users.find_one({"username": request.username})
+            if user_doc and result:
+                await check_and_award_referral_credit(user_doc.get("_id"), str(result.inserted_id), None)
 
             return {
                 "message": f"Assigned subscription to {request.username}",
@@ -415,6 +422,10 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
             except (IntegrityError, DBAPIError) as e:
                 await session.rollback()
                 raise HTTPException(status_code=400, detail="Invalid subscription request") from e
+            
+            # Check and award referral credit if this is user's first subscription
+            if us:
+                await check_and_award_referral_credit(user.id, us.id, session)
 
             return {
                 "message": f"Assigned subscription to {request.username}",

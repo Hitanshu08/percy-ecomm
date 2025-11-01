@@ -78,6 +78,10 @@ class Settings(BaseSettings):
     PAYPAL_CURRENCY: str = "USD"
     PAYPAL_RETURN_URL: str = "http://localhost:5173/wallet?paypal=success"
     PAYPAL_CANCEL_URL: str = "http://localhost:5173/wallet?paypal=cancel"
+    
+    # Referral settings
+    REFERRAL_CREDIT_AMOUNT: int = 1
+    REQUIRE_EMAIL_VERIFICATION: bool = True
 
     class Config:
         env_file = ".env"

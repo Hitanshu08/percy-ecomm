@@ -294,7 +294,7 @@ export async function apiCall<T>(url: string, options: RequestInit = {}): Promis
 }
 
 // Auth API calls
-export async function signup(username: string, email: string, password: string) {
+export async function signup(username: string, email: string, password: string, referralCode?: string) {
   const response = await fetch(`${API_URL}/signup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json',
@@ -302,10 +302,38 @@ export async function signup(username: string, email: string, password: string) 
       "Pragma": "no-cache",
       "Expires": "0"
      },
-    body: JSON.stringify({ username, email, password })
+    body: JSON.stringify({ username, email, password, referral_code: referralCode })
   });
   serverErrorGuard(response);
   return handle(response);
+}
+
+export async function verifyEmail(token: string) {
+  const response = await fetch(`${API_URL}/verify-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token })
+  });
+  serverErrorGuard(response);
+  return handle(response);
+}
+
+export async function resendVerificationEmail(email: string) {
+  const response = await fetch(`${API_URL}/resend-verification`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email })
+  });
+  serverErrorGuard(response);
+  return handle(response);
+}
+
+export async function getMyReferralCode(): Promise<{ referral_code: string }> {
+  return apiCall<{ referral_code: string }>(`${API_URL}/me/referral-code`);
+}
+
+export async function getMyReferralStats(): Promise<{ referral_code: string; referrals_count: number; total_credits_earned: number }> {
+  return apiCall<{ referral_code: string; referrals_count: number; total_credits_earned: number }>(`${API_URL}/me/referral-stats`);
 }
 
 export async function checkUsername(username: string): Promise<{ available: boolean }> {
@@ -345,6 +373,23 @@ export async function login(email: string, password: string) {
     let detail = 'Incorrect password.';
     try { const j = await response.json(); detail = j.detail || detail; } catch {}
     throw new Error(JSON.stringify({ code: 401, detail }));
+  }
+  if (response.status === 403) {
+    let detail = 'Please verify your email before logging in.';
+    try { 
+      const j = await response.json(); 
+      detail = j.detail || detail; 
+      const err = new Error(detail);
+      (err as any).code = 403;
+      (err as any).response = { status: 403, data: j };
+      throw err;
+    } catch (e) {
+      if (e instanceof Error && (e as any).code === 403) throw e;
+      const err = new Error(detail);
+      (err as any).code = 403;
+      (err as any).response = { status: 403, data: { detail } };
+      throw err;
+    }
   }
   if (!response.ok) {
     // Genuine server failures

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
-import { changePassword, getMe } from "../lib/apiClient";
+import { changePassword, getMe, getMyReferralStats } from "../lib/apiClient";
 import { Button, Input } from "../components/ui";
 import Spinner from "../components/feedback/Spinner";
 import Panel from "../components/layout/Panel";
@@ -31,10 +31,46 @@ export default function UserPage() {
   });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [referralStats, setReferralStats] = useState<{
+    referral_code: string;
+    referrals_count: number;
+    total_credits_earned: number;
+  } | null>(null);
+  const [loadingReferrals, setLoadingReferrals] = useState(true);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetchUserData();
+    fetchReferralStats();
   }, []);
+
+  const fetchReferralStats = async () => {
+    try {
+      const stats = await getMyReferralStats();
+      setReferralStats(stats);
+    } catch (error: any) {
+      // If referral code doesn't exist yet, that's okay - user might be old
+      if (error.response?.status !== 404) {
+        console.error('Error fetching referral stats:', error);
+      }
+    } finally {
+      setLoadingReferrals(false);
+    }
+  };
+
+  const copyReferralCode = () => {
+    if (referralStats?.referral_code) {
+      navigator.clipboard.writeText(referralStats.referral_code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const copyReferralLink = () => {
+    const referralLink = `${window.location.origin}/auth?ref=${referralStats?.referral_code}`;
+    navigator.clipboard.writeText(referralLink);
+    setMessage({ type: 'success', text: 'Referral link copied to clipboard!' });
+  };
 
   const fetchUserData = async () => {
     try {
@@ -188,6 +224,130 @@ export default function UserPage() {
                 </Button>
             </Panel>
           </div>
+        </div>
+
+        {/* Referral Program Section */}
+        <div className="mt-8">
+          <Panel title={<span className="text-lg font-medium">Referral Program</span>} bodyClassName="px-2 sm:px-2">
+            {loadingReferrals ? (
+              <div className="py-4">
+                <Spinner />
+              </div>
+            ) : referralStats ? (
+              <div className="space-y-6">
+                {/* Referral Code Section */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Your Referral Code
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="flex-1 bg-gray-100 dark:bg-gray-800 px-4 py-3 rounded-lg border-2 border-gray-300 dark:border-gray-600">
+                      <code className="text-2xl font-bold text-gray-900 dark:text-white tracking-wider">
+                        {referralStats.referral_code}
+                      </code>
+                    </div>
+                    <Button
+                      onClick={copyReferralCode}
+                      variant={copied ? "secondary" : "primary"}
+                      className="px-6"
+                    >
+                      {copied ? (
+                        <>
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          Copy Code
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                    Share this code with friends! When they sign up using your code and purchase their first subscription, you'll earn credits as a reward.
+                  </p>
+                </div>
+
+                {/* Share Link */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Referral Link
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="flex-1 bg-gray-100 dark:bg-gray-800 px-4 py-3 rounded-lg border-2 border-gray-300 dark:border-gray-600 truncate">
+                      <code className="text-sm text-gray-900 dark:text-white">
+                        {window.location.origin}/auth?ref={referralStats.referral_code}
+                      </code>
+                    </div>
+                    <Button
+                      onClick={copyReferralLink}
+                      variant="secondary"
+                      className="px-6"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      Copy Link
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Statistics */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Users Referred</div>
+                    <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                      {(referralStats.referrals_count || 0).toLocaleString()}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Total signups
+                    </div>
+                  </div>
+                  <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Credits Earned</div>
+                    <div className="text-3xl font-bold text-green-600 dark:text-green-400">
+                      {(referralStats.total_credits_earned || 0).toLocaleString()}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      From referrals
+                    </div>
+                  </div>
+                  <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Avg. per Referral</div>
+                    <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                      {referralStats.referrals_count > 0 
+                        ? ((referralStats.total_credits_earned || 0) / referralStats.referrals_count).toFixed(1)
+                        : '0.0'}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Credits per user
+                    </div>
+                  </div>
+                </div>
+
+                {/* Info Box */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <div className="flex">
+                    <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div className="text-sm text-blue-800 dark:text-blue-200">
+                      <strong>How it works:</strong> Share your referral code or link with friends. When they sign up using your code and purchase their first subscription, you automatically receive referral credits. Credits are awarded only once per referred user, immediately after their first purchase.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="py-4 text-gray-600 dark:text-gray-400">
+                Referral code not available. Please contact support if you believe this is an error.
+              </div>
+            )}
+          </Panel>
         </div>
 
         {/* Password Change Modal */}

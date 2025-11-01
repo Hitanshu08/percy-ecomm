@@ -13,27 +13,90 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from utils.timing import timeit
 from db.models.password_reset_otp import PasswordResetOTP
 import random
-from utils.email import send_otp_email
+import string
+import secrets
+from utils.email import send_otp_email, send_verification_email
 from sqlalchemy.exc import IntegrityError, DBAPIError
 from utils.db import safe_commit
 
 logger = logging.getLogger(__name__)
 
+def normalize_email(email: str) -> str:
+    """Normalize email address to prevent duplicate accounts using tricks
+    
+    - Converts to lowercase
+    - Removes dots for Gmail-style domains
+    - Removes + aliases
+    - Strips whitespace
+    """
+    email = email.strip().lower()
+    try:
+        local, domain = email.split('@', 1)
+        # Remove + aliases (everything after + in local part)
+        local = local.split('+')[0]
+        # Remove dots for Gmail/Google Mail domains
+        gmail_domains = ['gmail.com', 'googlemail.com', 'gmail.co.uk']
+        if domain in gmail_domains:
+            local = local.replace('.', '')
+        return f"{local}@{domain}"
+    except ValueError:
+        # Invalid email format, return as-is (will be caught by validation)
+        return email
+
+def generate_referral_code() -> str:
+    """Generate a unique 8-character alphanumeric referral code"""
+    chars = string.ascii_uppercase + string.digits
+    return ''.join(random.choice(chars) for _ in range(8))
+
+def generate_verification_token() -> str:
+    """Generate a secure 32-character token for email verification"""
+    return secrets.token_urlsafe(32)
+
 async def create_user(user: UserCreate, db: AsyncSession  = None):
     """Create a new user"""
     try:
+        # Normalize email to prevent duplicate accounts with tricks
+        normalized_email = normalize_email(user.email)
+        
         mongo = get_mongo_db()
         if settings.USE_MONGO and (mongo is not None):
             # Unique checks
             if await mongo.users.find_one({"username": user.username}):
                 raise HTTPException(status_code=400, detail="Username already registered")
-            if await mongo.users.find_one({"email": user.email}):
+            # Check using normalized email
+            if await mongo.users.find_one({"email": normalized_email}):
                 raise HTTPException(status_code=400, detail="Email already registered")
+            
+            # Handle referral code validation
+            referred_by_user_id = None
+            if user.referral_code:
+                referrer = await mongo.users.find_one({"referral_code": user.referral_code.upper()})
+                if not referrer:
+                    raise HTTPException(status_code=400, detail="Invalid referral code")
+                # Prevent self-referral (though username won't match, still check)
+                if referrer.get("username") == user.username:
+                    raise HTTPException(status_code=400, detail="Cannot use your own referral code")
+                referred_by_user_id = referrer.get("_id")
+            
+            # Generate unique referral code
+            referral_code = generate_referral_code()
+            max_attempts = 10
+            attempts = 0
+            while await mongo.users.find_one({"referral_code": referral_code}) and attempts < max_attempts:
+                referral_code = generate_referral_code()
+                attempts += 1
+            if attempts >= max_attempts:
+                raise HTTPException(status_code=500, detail="Failed to generate unique referral code")
+            
+            # Generate email verification token
+            verification_token = generate_verification_token()
+            token_expires = datetime.utcnow() + timedelta(hours=24)
+            
             hashed_password = get_password_hash(user.password)
             doc = {
                 "user_id": user.username,
                 "username": user.username,
-                "email": user.email,
+                "email": normalized_email,  # Store normalized email
                 "hashed_password": hashed_password,
                 "role": "user",
                 "credits": 0,
@@ -53,23 +116,63 @@ async def create_user(user: UserCreate, db: AsyncSession  = None):
                 },
                 "created_at": datetime.utcnow().isoformat(),
                 "is_active": True,
+                "referral_code": referral_code,
+                "referred_by_user_id": str(referred_by_user_id) if referred_by_user_id else None,
+                "email_verified": False,
+                "email_verification_token": verification_token,
+                "email_verification_token_expires": token_expires.isoformat(),
             }
             await mongo.users.insert_one(doc)
-            return {"message": "User created successfully"}
+            
+            # Send verification email
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+            send_verification_email(user.email, verification_token, frontend_url)
+            
+            return {"message": "User created successfully. Please check your email to verify your account."}
 
         async with get_or_use_session(db) as _db:
             existing = await _db.execute(select(UserModel).where(UserModel.username == user.username))
             if existing.scalars().first() is not None:
                 raise HTTPException(status_code=400, detail="Username already registered")
-            existing = await _db.execute(select(UserModel).where(UserModel.email == user.email))
+            # Check using normalized email
+            existing = await _db.execute(select(UserModel).where(UserModel.email == normalized_email))
             if existing.scalars().first() is not None:
                 raise HTTPException(status_code=400, detail="Email already registered")
+
+            # Handle referral code validation
+            referred_by_user_id = None
+            if user.referral_code:
+                referrer_result = await _db.execute(select(UserModel).where(UserModel.referral_code == user.referral_code.upper()))
+                referrer = referrer_result.scalars().first()
+                if not referrer:
+                    raise HTTPException(status_code=400, detail="Invalid referral code")
+                # Prevent self-referral
+                if referrer.username == user.username:
+                    raise HTTPException(status_code=400, detail="Cannot use your own referral code")
+                referred_by_user_id = referrer.id
+            
+            # Generate unique referral code
+            referral_code = generate_referral_code()
+            max_attempts = 10
+            attempts = 0
+            while True:
+                existing_code = await _db.execute(select(UserModel).where(UserModel.referral_code == referral_code))
+                if existing_code.scalars().first() is None:
+                    break
+                if attempts >= max_attempts:
+                    raise HTTPException(status_code=500, detail="Failed to generate unique referral code")
+                referral_code = generate_referral_code()
+                attempts += 1
+            
+            # Generate email verification token
+            verification_token = generate_verification_token()
+            token_expires = datetime.utcnow() + timedelta(hours=24)
 
             hashed_password = get_password_hash(user.password)
             new_user = UserModel(
                 user_id=user.username,
                 username=user.username,
-                email=user.email,
+                email=normalized_email,  # Store normalized email
                 hashed_password=hashed_password,
                 role="user",
                 services=[],
@@ -87,10 +190,20 @@ async def create_user(user: UserCreate, db: AsyncSession  = None):
                         "theme": "light"
                     }
                 },
+                referral_code=referral_code,
+                referred_by_user_id=referred_by_user_id,
+                email_verified=False,
+                email_verification_token=verification_token,
+                email_verification_token_expires=token_expires,
             )
             _db.add(new_user)
             await safe_commit(_db, client_error_message="Invalid signup data", server_error_message="Internal server error")
-            return {"message": "User created successfully"}
+            
+            # Send verification email
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+            send_verification_email(user.email, verification_token, frontend_url)
+            
+            return {"message": "User created successfully. Please check your email to verify your account."}
     except HTTPException:
         # Propagate intended HTTP errors (e.g., 400 for duplicates)
         raise
@@ -102,16 +215,19 @@ async def authenticate_user(email: str, password: str, db: AsyncSession  = None)
     """Authenticate user and return a result distinguishing wrong-password vs not-found.
 
     Returns one of:
-    - {"status": "ok", "user": user}
+    - {"status": "ok", "user": user, "email_verified": bool}
     - {"status": "not_found"}
     - {"status": "wrong_password"}
     - {"status": "error"} on unexpected failure
     """
     try:
+        # Normalize email if it looks like an email (contains @)
+        normalized_email = normalize_email(email) if "@" in email else email
+        
         mongo = get_mongo_db()
         if settings.USE_MONGO and (mongo is not None):
-            # Accept either email or username
-            user = await mongo.users.find_one({"$or": [{"email": email}, {"username": email}]})
+            # Accept either email (normalized) or username
+            user = await mongo.users.find_one({"$or": [{"email": normalized_email}, {"username": email}]})
             if not user:
                 return {"status": "not_found"}
             if not verify_password(password, user.get("hashed_password", "")):
@@ -124,13 +240,14 @@ async def authenticate_user(email: str, password: str, db: AsyncSession  = None)
             o.user_id = user.get("user_id") or user["username"]
             o.role = user.get("role", "user")
             o.credits = int(user.get("credits", 0))
-            return {"status": "ok", "user": o}
+            o.email_verified = user.get("email_verified", False)
+            return {"status": "ok", "user": o, "email_verified": o.email_verified}
 
         async with get_or_use_session(db) as _db:
-            # Accept either email or username in the OAuth2 "username" field
+            # Accept either email (normalized) or username in the OAuth2 "username" field
             result = await _db.execute(
                 select(UserModel).where(
-                    or_(UserModel.email == email, UserModel.username == email)
+                    or_(UserModel.email == normalized_email, UserModel.username == email)
                 )
             )
             user = result.scalars().first()
@@ -138,7 +255,7 @@ async def authenticate_user(email: str, password: str, db: AsyncSession  = None)
                 return {"status": "not_found"}
             if not verify_password(password, user.hashed_password):
                 return {"status": "wrong_password"}
-            return {"status": "ok", "user": user}
+            return {"status": "ok", "user": user, "email_verified": user.email_verified}
     except Exception as e:
         logger.error(f"Error authenticating user: {e}")
         return {"status": "error"}
@@ -155,6 +272,14 @@ async def login_user(email: str, password: str, db: AsyncSession  = None):
         if status != "ok":
             raise HTTPException(status_code=500, detail="Internal server error")
         user = result["user"]
+        
+        # Check email verification status (allow admin to bypass)
+        email_verified = result.get("email_verified", True)  # Default True for backwards compatibility
+        if not email_verified and user.role != "admin":
+            raise HTTPException(
+                status_code=403, 
+                detail="Please verify your email before logging in. Check your inbox for the verification link."
+            )
         
         access_token = create_access_token(
             data={"sub": user.username, "email": user.email, "user_id": (user.user_id or user.username), "role": user.role},
@@ -479,3 +604,113 @@ async def get_user_by_username(username: str, db: AsyncSession  = None):
     except Exception as e:
         logger.error(f"Error getting user by username: {e}")
         return None
+
+async def verify_email(token: str, db: AsyncSession = None):
+    """Verify user email with verification token"""
+    try:
+        mongo = get_mongo_db()
+        if settings.USE_MONGO and (mongo is not None):
+            user = await mongo.users.find_one({"email_verification_token": token})
+            if not user:
+                raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+            
+            # Check if already verified
+            if user.get("email_verified", False):
+                return {"message": "Email already verified"}
+            
+            # Check token expiration
+            expires_str = user.get("email_verification_token_expires")
+            if expires_str:
+                try:
+                    expires = datetime.fromisoformat(expires_str)
+                    if expires < datetime.utcnow():
+                        raise HTTPException(status_code=400, detail="Verification token has expired")
+                except Exception:
+                    pass
+            
+            # Mark email as verified
+            await mongo.users.update_one(
+                {"_id": user["_id"]},
+                {"$set": {"email_verified": True, "email_verification_token": None, "email_verification_token_expires": None}}
+            )
+            return {"message": "Email verified successfully"}
+        
+        async with get_or_use_session(db) as _db:
+            result = await _db.execute(select(UserModel).where(UserModel.email_verification_token == token))
+            user = result.scalars().first()
+            if not user:
+                raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+            
+            # Check if already verified
+            if user.email_verified:
+                return {"message": "Email already verified"}
+            
+            # Check token expiration
+            if user.email_verification_token_expires and user.email_verification_token_expires < datetime.utcnow():
+                raise HTTPException(status_code=400, detail="Verification token has expired")
+            
+            # Mark email as verified
+            user.email_verified = True
+            user.email_verification_token = None
+            user.email_verification_token_expires = None
+            await safe_commit(_db, client_error_message="Invalid verification request", server_error_message="Internal server error")
+            return {"message": "Email verified successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error verifying email: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+async def resend_verification_email(email: str, db: AsyncSession = None):
+    """Resend email verification token"""
+    try:
+        mongo = get_mongo_db()
+        if settings.USE_MONGO and (mongo is not None):
+            user = await mongo.users.find_one({"email": email})
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            if user.get("email_verified", False):
+                return {"message": "Email already verified"}
+            
+            # Generate new token
+            verification_token = generate_verification_token()
+            token_expires = datetime.utcnow() + timedelta(hours=24)
+            
+            await mongo.users.update_one(
+                {"_id": user["_id"]},
+                {"$set": {
+                    "email_verification_token": verification_token,
+                    "email_verification_token_expires": token_expires.isoformat()
+                }}
+            )
+            
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+            send_verification_email(email, verification_token, frontend_url)
+            return {"message": "Verification email sent"}
+        
+        async with get_or_use_session(db) as _db:
+            result = await _db.execute(select(UserModel).where(UserModel.email == email))
+            user = result.scalars().first()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            if user.email_verified:
+                return {"message": "Email already verified"}
+            
+            # Generate new token
+            verification_token = generate_verification_token()
+            token_expires = datetime.utcnow() + timedelta(hours=24)
+            
+            user.email_verification_token = verification_token
+            user.email_verification_token_expires = token_expires
+            await safe_commit(_db, client_error_message="Invalid request", server_error_message="Internal server error")
+            
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+            send_verification_email(email, verification_token, frontend_url)
+            return {"message": "Verification email sent"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resending verification email: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")

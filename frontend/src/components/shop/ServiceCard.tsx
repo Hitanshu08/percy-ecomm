@@ -6,8 +6,7 @@ export interface Service {
   image: string;
   available_accounts: number;
   total_accounts: number;
-  max_days_until_expiry: number;
-  max_end_date: string;
+  available: boolean;
   credits?: Record<string, number>;
   user_end_date?: string;
 }
@@ -35,6 +34,7 @@ interface ServiceCardProps {
   onChangeDuration: (val: string) => void;
   onPurchase: (serviceName: string) => void;
   purchasing: boolean;
+  isAvailable?: boolean;
 }
 
 const ServiceCard: React.FC<ServiceCardProps> = ({
@@ -46,8 +46,10 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
   onChangeDuration,
   onPurchase,
   purchasing,
+  isAvailable = true,
 }) => {
   const hasAvailableOptions = availableDurations.length > 0;
+  const canPurchase = hasAvailableOptions && isAvailable;
   return (
     <div className="border rounded-md overflow-hidden bg-white dark:bg-gray-800">
       <img src={service.image} alt={service.name} className="h-40 w-full object-cover bg-[ghostwhite]" />
@@ -72,16 +74,22 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
           </div>
         )}
 
-        {!hasExistingSubscription && service.available_accounts > 0 && (
+        {!hasExistingSubscription && isAvailable && (
           <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-md">
-            <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">Account Availability:</p>
+            <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">Account Available:</p>
             <div className="text-xs text-green-700 dark:text-green-400">
-              <div>Max available time: {service.max_days_until_expiry} days</div>
-              <div>Account expires: {service.max_end_date}</div>
               <div className="mt-2 text-green-600 dark:text-green-400">
                 <strong>You will be assigned to a specific account</strong>
               </div>
             </div>
+          </div>
+        )}
+
+        {!isAvailable && (
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-md">
+            <p className="text-sm font-medium text-red-800 dark:text-red-200">
+              No accounts currently available for purchase
+            </p>
           </div>
         )}
 
@@ -90,7 +98,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {hasExistingSubscription ? 'Select Extension Duration:' : 'Select Duration:'}
             </label>
-            <Select value={selectedDuration} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onChangeDuration(e.target.value)}>
+            <Select value={selectedDuration} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onChangeDuration(e.target.value)} disabled={!isAvailable}>
               {availableDurations.map((duration) => (
                 <option key={duration.value} value={duration.value}>
                   {duration.label} - {duration.credits_cost} credits
@@ -102,19 +110,17 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
 
         <Button
           onClick={() => onPurchase(service.name)}
-          disabled={purchasing || !hasAvailableOptions}
+          disabled={purchasing || !canPurchase}
           variant="primary"
           className="w-full"
         >
-          {purchasing ? 'Processing...' : !hasAvailableOptions ? 'No Options Available' : hasExistingSubscription ? 'Extend Subscription' : 'Get Account Assignment'}
+          {purchasing ? 'Processing...' : !isAvailable ? 'No Accounts Available' : !hasAvailableOptions ? 'No Options Available' : hasExistingSubscription ? 'Extend Subscription' : 'Get Account Assignment'}
         </Button>
 
         {!hasAvailableOptions && (
           <div className="text-center py-4">
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              {hasExistingSubscription
-                ? 'No extension options available for this subscription at this time.'
-                : 'No duration options available for this service at this time.'}
+              No duration options available for this service.
             </p>
           </div>
         )}

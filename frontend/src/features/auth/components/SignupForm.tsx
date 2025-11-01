@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { useSearchParams } from 'react-router-dom';
 import { signup, checkUsername } from '../../../lib/apiClient';
 import Input from '../../../components/ui/Input';
 import Button from '../../../components/ui/Button';
@@ -15,7 +16,8 @@ export default function SignupForm({ onSuccess, onSwitchToLogin }: SignupFormPro
     username: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    referralCode: ''
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -23,6 +25,15 @@ export default function SignupForm({ onSuccess, onSwitchToLogin }: SignupFormPro
   const [usernameAvailable, setUsernameAvailable] = useState<null | boolean>(null);
   const [checkingUsername, setCheckingUsername] = useState(false);
   const { theme } = useTheme();
+  const [searchParams] = useSearchParams();
+
+  // Auto-fill referral code from URL parameter
+  useEffect(() => {
+    const refCode = searchParams.get('ref');
+    if (refCode) {
+      setFormData(prev => ({ ...prev, referralCode: refCode.toUpperCase() }));
+    }
+  }, [searchParams]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -78,7 +89,7 @@ export default function SignupForm({ onSuccess, onSwitchToLogin }: SignupFormPro
 
     setIsLoading(true);
     try {
-      await signup(formData.username, formData.email, formData.password);
+      await signup(formData.username, formData.email, formData.password, formData.referralCode || undefined);
       onSuccess();
     } catch (err: any) {
       if (err.response?.data?.detail) {
@@ -188,6 +199,16 @@ export default function SignupForm({ onSuccess, onSwitchToLogin }: SignupFormPro
             placeholder="Confirm your password"
             error={errors.confirmPassword}
             showPasswordToggle={true}
+          />
+
+          {/* Referral Code Field (Optional) */}
+          <Input
+            type="text"
+            label="Referral Code (Optional)"
+            value={formData.referralCode}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('referralCode', e.target.value.toUpperCase())}
+            placeholder="Enter referral code"
+            error={errors.referralCode}
           />
 
           {errors.general && (

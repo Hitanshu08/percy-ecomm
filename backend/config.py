@@ -66,6 +66,11 @@ class Config:
             return durations[duration].get("credits_cost", 0)
         return 0
     
+    def get_referral_credit_amount(self) -> int:
+        """Get referral credit amount from config"""
+        referral_config = self._config.get("referral", {})
+        return int(referral_config.get("credit_amount", 1))
+    
     def get_api_config(self) -> Dict[str, Any]:
         """Get API configuration"""
         return self._config.get("api", {})

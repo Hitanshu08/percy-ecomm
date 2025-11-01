@@ -181,21 +181,18 @@ export default function Admin() {
   // Service credit configuration (matching backend config)
   const serviceCredits = {
     "Quillbot": {
-      "7days": 1,
       "1month": 2,
       "3months": 12,
       "6months": 20,
       "1year": 35
     },
     "Grammarly": {
-      "7days": 2,
       "1month": 4,
       "3months": 10,
       "6months": 18,
       "1year": 30
     },
     "ChatGPT": {
-      "7days": 3,
       "1month": 6,
       "3months": 15,
       "6months": 25,
@@ -205,7 +202,6 @@ export default function Admin() {
 
   // Default per-duration credits when a service has no custom credits configured
   const defaultDurationCredits: Record<string, number> = {
-    "7days": 1,
     "1month": 2,
     "3months": 3,
     "6months": 5,
@@ -707,7 +703,7 @@ export default function Admin() {
                       )}
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="flex flex-col">
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Account ID <span className="text-red-500">*</span>
@@ -758,23 +754,11 @@ export default function Admin() {
                           </button>
                         </div>
                       </div>
-                      <div className="flex flex-col">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        End Date <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        required
-                        value={formatDateForInput(account.end_date)}
-                        onChange={(e) => updateAccountField(index, 'end_date', formatDateForDisplay(e.target.value))}
-                        className="w-full px-3 py-2 border border-gray-300  dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white dark:[color-scheme:dark]"
-                      />
-                      </div>
-                      <div className="flex items-center">
+                      <div className="flex items-center justify-center">
                         <Checkbox
                           checked={account.is_active}
                           onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAccountField(index, 'is_active', e.target.checked)}
-                          label="Active"
+                          label="Available for Purchase"
                         />
                       </div>
                     </div>
@@ -870,7 +854,7 @@ export default function Admin() {
                                   : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                               }`}
                             >
-                              {account.is_active ? 'Active' : 'Inactive'}
+                              {account.is_active ? 'Available' : 'Unavailable'}
                             </span>
                           </div>
                         ))}
@@ -1021,7 +1005,6 @@ export default function Admin() {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
                   >
                     <option value="">Select Duration</option>
-                    <option value="7days">7 Days</option>
                     <option value="1month">1 Month</option>
                     <option value="3months">3 Months</option>
                     <option value="6months">6 Months</option>
