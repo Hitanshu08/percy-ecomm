@@ -83,6 +83,8 @@ class Settings(BaseSettings):
     REFERRAL_CREDIT_AMOUNT: int = 1
     REQUIRE_EMAIL_VERIFICATION: bool = True
 
+    FRONTEND_URL: str = None
+
     class Config:
         env_file = ".env"
         case_sensitive = True
