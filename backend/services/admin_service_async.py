@@ -70,23 +70,13 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
                     cost_to_deduct = int(svc_credits_map.get(request.duration, duration_cfg.get("credits_cost", 0)))
                 except Exception:
                     cost_to_deduct = int(duration_cfg.get("credits_cost", 0))
-                # choose active account that can last the duration
+                # choose any active account (no validation against account expiry)
                 for acc in (service_doc.get("accounts") or []):
-                    if not (acc or {}).get("is_active", True):
-                        continue
-                    end_s = (acc or {}).get("end_date")
-                    if not end_s:
-                        continue
-                    try:
-                        acc_end_dt = _parse_date(end_s)
-                        acc_end_d = acc_end_dt.date() if hasattr(acc_end_dt, "date") else acc_end_dt
-                    except Exception:
-                        continue
-                    if (acc_end_d - today_d).days >= days:
+                    if (acc or {}).get("is_active", True):
                         assigned_account = acc
                         break
                 if not assigned_account:
-                    raise HTTPException(status_code=400, detail="No account can satisfy requested duration")
+                    raise HTTPException(status_code=400, detail="No active account available")
                 proposed_end_dt = today_dt + timedelta(days=days)
             elif request.service_id and request.end_date:
                 # resolve by account_id or service name
@@ -131,37 +121,14 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
                         cost_to_deduct = int(chosen.get("credits_cost", 0)) if chosen else 0
                     except Exception:
                         cost_to_deduct = 0
-                # If account chosen explicitly, ensure it can sustain
-                if assigned_account and (assigned_account.get("end_date")):
-                    try:
-                        acc_end_dt = _parse_date(assigned_account.get("end_date"))
-                        acc_end_d = acc_end_dt.date() if hasattr(acc_end_dt, "date") else acc_end_dt
-                        if new_end_d > acc_end_d:
-                            raise HTTPException(status_code=400, detail="Requested end date exceeds account expiry")
-                    except HTTPException:
-                        raise
-                    except Exception:
-                        pass
-                else:
-                    # pick any account in the service that can satisfy end date
-                    picked = None
+                # If account not chosen explicitly, pick any active account (no validation against account expiry)
+                if not assigned_account:
                     for acc in (service_doc.get("accounts") or []):
-                        if not (acc or {}).get("is_active", True):
-                            continue
-                        end_s = (acc or {}).get("end_date")
-                        if not end_s:
-                            continue
-                        try:
-                            acc_end_dt = _parse_date(end_s)
-                            acc_end_d = acc_end_dt.date() if hasattr(acc_end_dt, "date") else acc_end_dt
-                            if acc_end_d >= new_end_d:
-                                picked = acc
-                                break
-                        except Exception:
-                            continue
-                    if not picked:
-                        raise HTTPException(status_code=400, detail="No account can satisfy requested end date")
-                    assigned_account = picked
+                        if (acc or {}).get("is_active", True):
+                            assigned_account = acc
+                            break
+                    if not assigned_account:
+                        raise HTTPException(status_code=400, detail="No active account available")
                 proposed_end_dt = new_end_dt
             else:
                 raise HTTPException(status_code=400, detail="Provide either service_id+end_date or service_name+duration")
@@ -174,63 +141,41 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
             service_name = service_doc.get("name", request.service_name or "")
             account_id = (assigned_account or {}).get("account_id")
 
-            # Extend or create subscription
-            existing = await mdb.subscriptions.find_one({"username": request.username, "service_name": service_name, "is_active": True})
+            # Extend or create subscription - check for any existing subscription for this service (active or inactive)
+            existing = await mdb.subscriptions.find_one({"username": request.username, "service_name": service_name})
+            result = None
             if existing:
-                # base date = max(existing end, today)
-                try:
-                    exist_end_dt = _parse_date(existing.get("end_date")) if existing.get("end_date") else today_dt
-                except Exception:
-                    exist_end_dt = today_dt
-                base_dt = exist_end_dt if exist_end_dt > today_dt else today_dt
-                new_end_dt2 = base_dt + timedelta(days=days)
-                # Ensure account can sustain
-                try:
-                    acc_end_dt = _parse_date((assigned_account or {}).get("end_date")) if (assigned_account or {}).get("end_date") else None
-                    if acc_end_dt and new_end_dt2.date() > (acc_end_dt.date() if hasattr(acc_end_dt, "date") else acc_end_dt):
-                        # try to find another account
-                        found = None
-                        for acc in (service_doc.get("accounts") or []):
-                            if not (acc or {}).get("is_active", True):
-                                continue
-                            end_s = (acc or {}).get("end_date")
-                            if not end_s:
-                                continue
-                            try:
-                                acc_end_dt2 = _parse_date(end_s)
-                                if acc_end_dt2 and acc_end_dt2 >= new_end_dt2:
-                                    found = acc
-                                    break
-                            except Exception:
-                                continue
-                        if not found:
-                            raise HTTPException(status_code=400, detail="No account can satisfy requested extension")
-                        assigned_account = found
-                        account_id = found.get("account_id")
-                except HTTPException:
-                    raise
-                except Exception:
-                    pass
-                # If assigned account missing from service (e.g., deleted), reassign to another valid account
+                # Extend existing subscription
+                # If using service_id + end_date mode, use the requested end_date directly
+                # Otherwise (service_name + duration), add days to existing end date
+                if request.service_id and request.end_date:
+                    # Use the requested end_date directly
+                    new_end_dt2 = proposed_end_dt
+                    # Calculate additional days for total_duration_days increment
+                    try:
+                        exist_end_dt = _parse_date(existing.get("end_date")) if existing.get("end_date") else today_dt
+                    except Exception:
+                        exist_end_dt = today_dt
+                    base_dt = exist_end_dt if exist_end_dt > today_dt else today_dt
+                    additional_days = max(0, (new_end_dt2.date() if hasattr(new_end_dt2, "date") else new_end_dt2) - (base_dt.date() if hasattr(base_dt, "date") else base_dt)).days
+                else:
+                    # Add days to existing end date
+                    try:
+                        exist_end_dt = _parse_date(existing.get("end_date")) if existing.get("end_date") else today_dt
+                    except Exception:
+                        exist_end_dt = today_dt
+                    base_dt = exist_end_dt if exist_end_dt > today_dt else today_dt
+                    new_end_dt2 = base_dt + timedelta(days=days)
+                    additional_days = days
+                # No validation against account expiry - allow any extension
+                # If assigned account missing from service (e.g., deleted), reassign to any active account
                 try:
                     if account_id and not any(((a or {}).get("account_id") == account_id) for a in (service_doc.get("accounts") or [])):
-                        fallback = None
                         for a in (service_doc.get("accounts") or []):
-                            if not (a or {}).get("is_active", True):
-                                continue
-                            end_s = (a or {}).get("end_date")
-                            if not end_s:
-                                continue
-                            try:
-                                a_end = _parse_date(end_s)
-                                if a_end and a_end >= new_end_dt2:
-                                    fallback = a
-                                    break
-                            except Exception:
-                                continue
-                        if fallback:
-                            assigned_account = fallback
-                            account_id = fallback.get("account_id")
+                            if (a or {}).get("is_active", True):
+                                assigned_account = a
+                                account_id = a.get("account_id")
+                                break
                 except Exception:
                     pass
                 await mdb.subscriptions.update_one(
@@ -238,22 +183,14 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
                     {"$set": {
                         "end_date": to_date(new_end_dt2),
                         "account_id": account_id,
+                        "is_active": True,  # Reactivate if it was inactive
                         "duration_key": request.duration or existing.get("duration_key", ""),
-                    }, "$inc": {"total_duration_days": int(days)}}
+                    }, "$inc": {"total_duration_days": int(additional_days)}}
                 )
                 new_end_str = to_date(new_end_dt2)
             else:
-                # create new sub
+                # create new sub (no validation against account expiry)
                 new_end_str = to_date(proposed_end_dt)
-                if assigned_account and assigned_account.get("end_date"):
-                    try:
-                        acc_end_dt = _parse_date(assigned_account.get("end_date"))
-                        if proposed_end_dt.date() > (acc_end_dt.date() if hasattr(acc_end_dt, "date") else acc_end_dt):
-                            raise HTTPException(status_code=400, detail="Requested duration exceeds account expiry")
-                    except HTTPException:
-                        raise
-                    except Exception:
-                        pass
                 new_sub = {
                     "username": request.username,
                     "service_name": service_name,
@@ -317,17 +254,12 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
                 sdc_rows = (await session.execute(select(ServiceDurationCredit).where(ServiceDurationCredit.service_id == target_service.id))).scalars().all()
                 svc_credits_map = {r.duration_key: r.credits for r in sdc_rows}
                 cost_to_deduct = int(svc_credits_map.get(request.duration, duration_cfg.get("credits_cost", 0)))
-                # pick an active account that can satisfy the duration
+                # pick any active account (no validation against account expiry)
                 accounts = (await session.execute(select(ServiceAccount).where(ServiceAccount.service_id == target_service.id, ServiceAccount.is_active == True))).scalars().all()
-                for acc in accounts:
-                    if not acc.end_date:
-                        continue
-                    acc_end_d = acc.end_date.date() if hasattr(acc.end_date, "date") else acc.end_date
-                    if (acc_end_d - today_d).days >= days:
-                        assigned_account = acc
-                        break
+                if accounts:
+                    assigned_account = accounts[0]
                 if not assigned_account:
-                    raise HTTPException(status_code=400, detail="No account can satisfy requested duration")
+                    raise HTTPException(status_code=400, detail="No active account available")
                 proposed_end_d = today_d + timedelta(days=days)
             elif request.service_id and request.end_date:
                 # resolve account by external id or internal pk or service name
@@ -341,19 +273,13 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
                         if not svc:
                             raise HTTPException(status_code=404, detail="Service or account not found")
                         target_service = svc
-                        # pick any active account that can support given end_date
+                        # pick any active account (no validation against account expiry)
                         accounts = (await session.execute(select(ServiceAccount).where(ServiceAccount.service_id == svc.id, ServiceAccount.is_active == True))).scalars().all()
-                        new_end_dt = _parse_date(request.end_date)
-                        new_end_d = new_end_dt.date() if hasattr(new_end_dt, "date") else new_end_dt
-                        for acc in accounts:
-                            if acc.end_date:
-                                acc_end_d = acc.end_date.date() if hasattr(acc.end_date, "date") else acc.end_date
-                                if acc_end_d >= new_end_d:
-                                    assigned_account = acc
-                                    break
+                        if accounts:
+                            assigned_account = accounts[0]
+                            sa = assigned_account
                         if not assigned_account:
-                            raise HTTPException(status_code=400, detail="No account can satisfy requested end date")
-                        sa = assigned_account
+                            raise HTTPException(status_code=400, detail="No active account available")
                 if not sa:
                     raise HTTPException(status_code=404, detail="Account not found")
                 assigned_account = sa
@@ -380,28 +306,34 @@ async def assign_subscription(request: AdminAssignSubscription, current_user: Us
             if (user.credits or 0) < cost_to_deduct:
                 raise HTTPException(status_code=400, detail="Insufficient credits")
 
-            # Find existing active subscription for this service
-            existing = (await session.execute(select(UserSubscription).where(UserSubscription.user_id == user.id, UserSubscription.service_id == target_service.id, UserSubscription.is_active == True))).scalars().first()
+            # Find existing subscription for this service (active or inactive) - extend if exists
+            existing = (await session.execute(select(UserSubscription).where(UserSubscription.user_id == user.id, UserSubscription.service_id == target_service.id))).scalars().first()
+            us = None
             if existing:
-                current_end_d = existing.end_date
-                base_d = current_end_d if current_end_d and current_end_d > today_d else today_d
-                proposed_end_d = base_d + timedelta(days=days)
-                # ensure account can sustain
-                if not assigned_account.end_date:
-                    raise HTTPException(status_code=400, detail="Requested extension exceeds account expiry")
-                acc_end_d = assigned_account.end_date.date() if hasattr(assigned_account.end_date, "date") else assigned_account.end_date
-                if proposed_end_d > acc_end_d:
-                    raise HTTPException(status_code=400, detail="Requested extension exceeds account expiry")
+                # Extend existing subscription
+                # If using service_id + end_date mode, use the requested end_date directly
+                # Otherwise (service_name + duration), add days to existing end date
+                if request.service_id and request.end_date:
+                    # Use the requested end_date directly (already set in proposed_end_d)
+                    # Calculate additional days for total_duration_days increment
+                    current_end_d = existing.end_date
+                    base_d = current_end_d if current_end_d and current_end_d > today_d else today_d
+                    additional_days = max(0, (proposed_end_d - base_d).days)
+                else:
+                    # Add days to existing end date
+                    current_end_d = existing.end_date
+                    base_d = current_end_d if current_end_d and current_end_d > today_d else today_d
+                    proposed_end_d = base_d + timedelta(days=days)
+                    additional_days = days
+                # No validation against account expiry - allow any extension
                 existing.end_date = proposed_end_d
                 existing.account_id = assigned_account.id
+                existing.is_active = True  # Reactivate if it was inactive
                 existing.duration_key = request.duration or existing.duration_key
-                existing.total_duration_days = (existing.total_duration_days or 0) + days
+                existing.total_duration_days = (existing.total_duration_days or 0) + additional_days
+                us = existing
             else:
-                if not assigned_account.end_date:
-                    raise HTTPException(status_code=400, detail="Requested duration exceeds account expiry")
-                acc_end_d = assigned_account.end_date.date() if hasattr(assigned_account.end_date, "date") else assigned_account.end_date
-                if proposed_end_d > acc_end_d:
-                    raise HTTPException(status_code=400, detail="Requested duration exceeds account expiry")
+                # No validation against account expiry - allow any duration
                 us = UserSubscription(
                     user_id=user.id,
                     service_id=target_service.id,
@@ -545,6 +477,10 @@ async def remove_user_subscription(request: AdminRemoveSubscription, current_use
         raise HTTPException(status_code=500, detail="Internal server error")
 
 async def update_user_subscription_end_date(request: AdminUpdateSubscriptionEndDate, current_user: User, db: AsyncSession = None):
+    """Update the end date of a user's subscription (expects dd/mm/yyyy)
+    Note: This function does NOT validate if the end date exceeds the account's expiry date.
+    Any valid date can be set without error checking against account constraints.
+    """
     # Validate required fields
     if not request.username:
         raise HTTPException(status_code=400, detail="username field is required")
@@ -557,6 +493,7 @@ async def update_user_subscription_end_date(request: AdminUpdateSubscriptionEndD
             if mdb is None:
                 raise HTTPException(status_code=500, detail="Mongo not available")
             # Normalize to date-only string dd/mm/YYYY
+            # No validation against account end date - any date is allowed
             try:
                 new_end_dt = _parse_date(request.end_date)
                 new_end_str = _format_date(new_end_dt)
@@ -573,6 +510,7 @@ async def update_user_subscription_end_date(request: AdminUpdateSubscriptionEndD
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
             # Resolve account and subscription
+            # Note: We retrieve the account but do NOT validate end_date against account.expiry
             sa = (await db.execute(select(ServiceAccount).where(ServiceAccount.account_id == request.service_id))).scalars().first()
             sa_id = sa.id if sa else None
             subs_q = select(UserSubscription).where(UserSubscription.user_id == user.id)
@@ -596,13 +534,14 @@ async def update_user_subscription_end_date(request: AdminUpdateSubscriptionEndD
             target = active[0] if active else max(subs, key=lambda s: (s.end_date or _parse_date("01/01/1900")))
             new_end = _parse_date(request.end_date)
             # keep date-only
+            # No validation - any date is allowed regardless of account constraints
             target.end_date = new_end.date() if hasattr(new_end, "date") else new_end
             try:
                 from datetime import datetime
                 target.is_active = (datetime.combine(target.end_date, datetime.min.time()) - datetime.now()).days >= 0 if target.end_date else False
             except Exception:
                 pass
-            await safe_commit(db, client_error_message="Invalid remove subscription request", server_error_message="Internal server error")
+            await safe_commit(db, client_error_message="Invalid end date update", server_error_message="Internal server error")
             return {"message": "Updated end date", "end_date": _format_date(new_end)}
     except Exception as e:
         logger.error(f"Error updating subscription end date: {e}")

@@ -34,7 +34,7 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
                 svc = db.query(ServiceModel).filter(ServiceModel.name == request.service_name).first()
                 if not svc:
                     raise HTTPException(status_code=404, detail="Service not found")
-                # pick any active account; ensure duration fits available window
+                # pick any active account (no validation against account expiry)
                 from datetime import datetime, timedelta
                 from services.service_service import parse_date, format_date
                 duration_cfg = config.get_subscription_durations().get(request.duration)
@@ -51,12 +51,10 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
                 picked_account = None
                 for account in (svc.accounts or []):
                     if account.get("is_active"):
-                        acc_end = parse_date(account["end_date"]) if isinstance(account.get("end_date"), str) else account.get("end_date")
-                        if acc_end and (acc_end - today).days >= days:
-                            picked_account = account
-                            break
+                        picked_account = account
+                        break
                 if not picked_account:
-                    raise HTTPException(status_code=400, detail="No account can satisfy requested duration")
+                    raise HTTPException(status_code=400, detail="No active account available")
                 service_id = picked_account["id"]
                 end_date = format_date(today + timedelta(days=days))
             else:
@@ -119,10 +117,7 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
                     current_end = parse_date(existing_subscription.get("end_date")) if isinstance(existing_subscription.get("end_date"), str) else existing_subscription.get("end_date")
                     base_date = current_end if current_end and current_end > today else today
                     proposed_end = base_date + timedelta(days=days)
-                    # Ensure the backing service account can support the proposed end date
-                    account_end = parse_date(picked_account_obj.get("end_date")) if isinstance(picked_account_obj.get("end_date"), str) else picked_account_obj.get("end_date")
-                    if not account_end or proposed_end > account_end:
-                        raise HTTPException(status_code=400, detail="Cannot extend: requested extension exceeds service account expiry")
+                    # No validation against account expiry - allow any extension
                     # Deduct user global credits (must be sufficient)
                     if deduct_enabled:
                         if user.credits is None:
@@ -132,6 +127,7 @@ def assign_subscription(request: AdminAssignSubscription, current_user: User):
                         user.credits = (user.credits or 0) - cost_to_deduct
                     # Apply extension and credit top-up
                     existing_subscription["end_date"] = format_date(proposed_end)
+                    existing_subscription["is_active"] = True  # Reactivate if it was inactive
                     # Top up subscription credits for the additional period
                     # existing_subscription["credits"] = (existing_subscription.get("credits", 0) or 0) + service_credits
                     flag_modified(user, "services")
@@ -334,7 +330,10 @@ def remove_user_subscription(request: AdminRemoveSubscription, current_user: Use
         raise HTTPException(status_code=500, detail="Internal server error")
 
 def update_user_subscription_end_date(request: AdminUpdateSubscriptionEndDate, current_user: User):
-    """Update the end date of a user's subscription (expects dd/mm/yyyy)"""
+    """Update the end date of a user's subscription (expects dd/mm/yyyy)
+    Note: This function does NOT validate if the end date exceeds the account's expiry date.
+    Any valid date can be set without error checking against account constraints.
+    """
     # Validate required fields
     if not request.username:
         raise HTTPException(status_code=400, detail="username field is required")
@@ -352,6 +351,7 @@ def update_user_subscription_end_date(request: AdminUpdateSubscriptionEndDate, c
             updated = False
             for sub in user.services:
                 if sub.get("service_id") == request.service_id or sub.get("account_id") == request.service_id:
+                    # No validation against account end date - any date is allowed
                     sub["end_date"] = request.end_date
                     # Auto-set is_active depending on date
                     try:
