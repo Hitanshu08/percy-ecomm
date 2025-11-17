@@ -38,36 +38,20 @@
       "name": "3 Months",
       "days": 90,
       "credits_cost": 500
-    },
-    "6months": {
-      "name": "6 Months",
-      "days": 180,
-      "credits_cost": 900
-    },
-    "1year": {
-      "name": "1 Year",
-      "days": 365,
-      "credits_cost": 1500
     }
   },
   "service_credits": {
     "Quillbot": {
       "1month": 500,
-      "3months": 1200,
-      "6months": 2000,
-      "1year": 3500
+      "3months": 1200
     },
     "Grammarly": {
       "1month": 400,
-      "3months": 1000,
-      "6months": 1800,
-      "1year": 3000
+      "3months": 1000
     },
     "ChatGPT": {
       "1month": 600,
-      "3months": 1500,
-      "6months": 2500,
-      "1year": 4500
+      "3months": 1500
     }
   },
   "api": {

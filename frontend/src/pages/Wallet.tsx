@@ -163,7 +163,7 @@ export default function Wallet() {
                   Need to Add Credits?
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  Contact us on Telegram to purchase credits
+                Instant top-ups via UPI, Crypto, Visa/Mastercard & Manual PayPal. Contact us on Telegram to purchase credits
                 </p>
                 <Button
                   onClick={handleTelegramClick}
@@ -183,12 +183,12 @@ export default function Wallet() {
           <div className="lg:col-span-2">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
               <div className="mb-6">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                {/* <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
                   Conversion Rate
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                   Approximate conversion rates: 1 USD = {config.getUsdToCreditsRate()} Credits
-                </p>
+                </p> */}
               </div>
 
               {/* Provider toggle */}

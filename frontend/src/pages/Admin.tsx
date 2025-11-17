@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import {
@@ -100,6 +100,9 @@ export default function Admin() {
   // Service credit preview
   const [serviceCreditPreview, setServiceCreditPreview] = useState<number | null>(null);
 
+  // Ref for the edit service form
+  const editServiceFormRef = useRef<HTMLDivElement>(null);
+
   // Load saved pagination from localStorage
   useEffect(() => {
     const sPage = Number(localStorage.getItem('admin_services_page') || 1);
@@ -178,25 +181,47 @@ export default function Admin() {
     localStorage.setItem('admin_active_tab', activeTab);
   }, [activeTab]);
 
+  // Scroll to edit form and focus first input when editing starts
+  useEffect(() => {
+    if (editingService && activeTab === 'services' && editServiceFormRef.current) {
+      // Use a small delay to ensure DOM is fully rendered
+      const timer = setTimeout(() => {
+        if (editServiceFormRef.current) {
+          const headerHeight = 64; // Header height (h-16 = 64px)
+          const elementTop = editServiceFormRef.current.getBoundingClientRect().top + window.pageYOffset;
+          const offsetPosition = elementTop - headerHeight - 16; // 16px additional padding
+          
+          window.scrollTo({
+            top: offsetPosition,
+            behavior: 'smooth'
+          });
+          
+          // Focus the first input after scroll animation
+          setTimeout(() => {
+            const firstInput = editServiceFormRef.current?.querySelector('#service-name-input') as HTMLInputElement;
+            if (firstInput) {
+              firstInput.focus();
+            }
+          }, 150);
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [editingService, activeTab]);
+
   // Service credit configuration (matching backend config)
   const serviceCredits = {
     "Quillbot": {
       "1month": 2,
-      "3months": 12,
-      "6months": 20,
-      "1year": 35
+      "3months": 12
     },
     "Grammarly": {
       "1month": 4,
-      "3months": 10,
-      "6months": 18,
-      "1year": 30
+      "3months": 10
     },
     "ChatGPT": {
       "1month": 6,
-      "3months": 15,
-      "6months": 25,
-      "1year": 45
+      "3months": 15
     }
   };
 
@@ -204,8 +229,6 @@ export default function Admin() {
   const defaultDurationCredits: Record<string, number> = {
     "1month": 2,
     "3months": 3,
-    "6months": 5,
-    "1year": 9,
   };
 
   const getServiceCreditsForDuration = (serviceName: string, duration: string): number => {
@@ -342,6 +365,9 @@ export default function Admin() {
 
       const startEditService = async (serviceName: string) => {
       try {
+        // Ensure services tab is active
+        setActiveTab('services');
+        
         const serviceData: any = await getService(serviceName);
         setNewService({
           name: serviceData.name,
@@ -356,6 +382,7 @@ export default function Admin() {
         });
         setEditingService(serviceName);
         setShowEditForm(true);
+        // Scroll and focus will be handled by useEffect when editingService and activeTab are set
       } catch (error: any) {
         console.error('Error fetching service:', error);
         alert(`Error fetching service details: ${error?.message || ''}`);
@@ -612,7 +639,7 @@ export default function Admin() {
           <div className="space-y-6">
             {/* Create/Edit Service Form */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              <h2 ref={editServiceFormRef} className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 {editingService ? `Edit Service: ${editingService}` : 'Create New Service'}
               </h2>
               
@@ -1007,8 +1034,6 @@ export default function Admin() {
                     <option value="">Select Duration</option>
                     <option value="1month">1 Month</option>
                     <option value="3months">3 Months</option>
-                    <option value="6months">6 Months</option>
-                    <option value="1year">1 Year</option>
                   </select>
                 </div>
                 

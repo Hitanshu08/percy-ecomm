@@ -55,9 +55,9 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
       <img src={service.image} alt={service.name} className="h-40 w-full object-cover bg-[ghostwhite]" />
       <div className="p-4 space-y-3">
         <div className="text-lg font-medium text-gray-900 dark:text-white">{service.name}</div>
-        <p className="text-sm text-gray-600 dark:text-gray-400">
+        {/* <p className="text-sm text-gray-600 dark:text-gray-400">
           {service.available_accounts} of {service.total_accounts} accounts available
-        </p>
+        </p> */}
 
         {hasExistingSubscription && currentSubInfo && (
           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">

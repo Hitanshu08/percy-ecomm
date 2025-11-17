@@ -247,67 +247,76 @@ async def purchase_subscription(request: SubscriptionPurchase, current_user: Use
             today_d = today_dt.date()
             today_str = to_date(today_dt)
             
-            # Find existing subscription
+            # Find existing subscription for this service (active or inactive) - extend if exists
             existing_subscription = await mdb.subscriptions.find_one({
                 "username": current_user.username,
-                "service_name": request.service_name,
-                "is_active": True
+                "service_name": request.service_name
             })
             
             assigned_account = None
-            if existing_subscription and existing_subscription.get("account_id"):
-                # Try to use the same account
-                account_id = existing_subscription.get("account_id")
-                for acc in available_accounts:
-                    if (acc or {}).get("account_id") == account_id:
-                        assigned_account = acc
-                        break
+            account_id = None
+            result = None
+            is_extension = False
             
-            # If no assigned account, pick any available account (prefer one with longest expiry if dates exist)
-            if not assigned_account:
+            if existing_subscription:
+                # Extend existing subscription
+                is_extension = True
+                # Try to use the same account if it still exists
+                if existing_subscription.get("account_id"):
+                    account_id = existing_subscription.get("account_id")
+                    for acc in available_accounts:
+                        if (acc or {}).get("account_id") == account_id:
+                            assigned_account = acc
+                            break
+                
+                # If account not found or not assigned, pick any available account
+                if not assigned_account:
+                    if not available_accounts:
+                        raise HTTPException(status_code=400, detail="No available accounts for this service")
+                    assigned_account = available_accounts[0]
+                    account_id = assigned_account.get("account_id")
+                
+                # Extend existing subscription - base date = max(existing end, today)
+                try:
+                    exist_end_dt = _parse_date(existing_subscription.get("end_date")) if existing_subscription.get("end_date") else today_dt
+                except Exception:
+                    exist_end_dt = today_dt
+                base_dt = exist_end_dt if exist_end_dt > today_dt else today_dt
+                new_end_dt = base_dt + timedelta(days=requested_days)
+                new_end_str = to_date(new_end_dt)
+                
+                # Update existing subscription
+                await mdb.subscriptions.update_one(
+                    {"_id": existing_subscription.get("_id")},
+                    {"$set": {
+                        "end_date": new_end_str,
+                        "account_id": account_id,
+                        "is_active": True,  # Reactivate if it was inactive
+                        "duration_key": request.duration,
+                    }, "$inc": {"total_duration_days": int(requested_days)}}
+                )
+            else:
+                # Create new subscription - pick any available account
                 if not available_accounts:
                     raise HTTPException(status_code=400, detail="No available accounts for this service")
-                # Pick first available account (all are active, so any will work)
-                # Optionally prefer accounts with longer expiry dates if they exist
-                best_account = None
-                max_available_days = -1
-                for acc in available_accounts:
-                    end_s = (acc or {}).get("end_date")
-                    if end_s:
-                        try:
-                            acc_end_dt = _parse_date(end_s)
-                            acc_end_d = acc_end_dt.date() if hasattr(acc_end_dt, "date") else acc_end_dt
-                            days_until_expiry = (acc_end_d - today_d).days
-                            if days_until_expiry > max_available_days:
-                                max_available_days = days_until_expiry
-                                best_account = acc
-                        except Exception:
-                            pass
-                    # If no end_date, account is always available
-                    if not best_account:
-                        best_account = acc
-                        break
-                assigned_account = best_account or available_accounts[0]
-            
-            # No duration validation needed - availability is based on is_active checkbox
-            
-            # Always create a NEW subscription (users can hold multiple accounts for same service)
-            proposed_end_dt = today_dt + timedelta(days=requested_days)
-            new_end_str = to_date(proposed_end_dt)
-            account_id = assigned_account.get("account_id")
-            
-            # Create new subscription
-            new_sub = {
-                "username": current_user.username,
-                "service_name": request.service_name,
-                "account_id": account_id,
-                "start_date": today_str,
-                "end_date": new_end_str,
-                "is_active": True,
-                "duration_key": request.duration,
-                "total_duration_days": requested_days,
-            }
-            result = await mdb.subscriptions.insert_one(new_sub)
+                assigned_account = available_accounts[0]
+                account_id = assigned_account.get("account_id")
+                
+                proposed_end_dt = today_dt + timedelta(days=requested_days)
+                new_end_str = to_date(proposed_end_dt)
+                
+                # Create new subscription
+                new_sub = {
+                    "username": current_user.username,
+                    "service_name": request.service_name,
+                    "account_id": account_id,
+                    "start_date": today_str,
+                    "end_date": new_end_str,
+                    "is_active": True,
+                    "duration_key": request.duration,
+                    "total_duration_days": requested_days,
+                }
+                result = await mdb.subscriptions.insert_one(new_sub)
             
             # Deduct credits
             await mdb.users.update_one(
@@ -315,18 +324,19 @@ async def purchase_subscription(request: SubscriptionPurchase, current_user: Use
                 {"$inc": {"credits": -int(cost_to_deduct)}}
             )
             
-            # Check and award referral credit if this is user's first subscription
-            user_doc = await mdb.users.find_one({"username": current_user.username})
-            if user_doc and result:
-                await check_and_award_referral_credit(user_doc.get("_id"), str(result.inserted_id), None)
+            # Check and award referral credit if this is user's first subscription (only for new subscriptions)
+            if result:
+                user_doc = await mdb.users.find_one({"username": current_user.username})
+                if user_doc:
+                    await check_and_award_referral_credit(user_doc.get("_id"), str(result.inserted_id), None)
             
             # Get updated credits
             updated_user = await mdb.users.find_one({"username": current_user.username})
             updated_credits = int(updated_user.get("credits", 0)) if updated_user else (current_credits - cost_to_deduct)
             
             return {
-                "message": f"Purchased {duration_config.get('name', request.duration)} for {request.service_name}",
-                "extension": False,
+                "message": f"{'Extended' if is_extension else 'Purchased'} {duration_config.get('name', request.duration)} for {request.service_name}",
+                "extension": is_extension,
                 "new_end_date": new_end_str,
                 "credits": updated_credits,
                 "cost": cost_to_deduct,
@@ -367,69 +377,77 @@ async def purchase_subscription(request: SubscriptionPurchase, current_user: Use
             if not available_accounts:
                 raise HTTPException(status_code=400, detail="No available accounts for this service")
             today = datetime.now()
-            # Find existing subscription from normalized table
+            # Find existing subscription for this service (active or inactive) - extend if exists
             existing_subscription = (await _db.execute(
                 select(UserSubscription).where(
                     UserSubscription.user_id == user.id,
-                    UserSubscription.service_id == service_data.id,
-                    UserSubscription.is_active == True
+                    UserSubscription.service_id == service_data.id
                 )
             )).scalars().first()
+            
             assigned_account = None
-            if existing_subscription and existing_subscription.account_id:
-                for acc in available_accounts:
-                    if acc.id == existing_subscription.account_id:
-                        assigned_account = acc
-                        break
-            if not assigned_account:
-                # Pick any available account (prefer one with longest expiry if dates exist)
+            is_extension = False
+            
+            if existing_subscription:
+                # Extend existing subscription
+                is_extension = True
+                # Try to use the same account if it still exists
+                if existing_subscription.account_id:
+                    for acc in available_accounts:
+                        if acc.id == existing_subscription.account_id:
+                            assigned_account = acc
+                            break
+                
+                # If account not found or not assigned, pick any available account
+                if not assigned_account:
+                    if not available_accounts:
+                        raise HTTPException(status_code=400, detail="No available accounts for this service")
+                    assigned_account = available_accounts[0]
+                
+                # Extend existing subscription - base date = max(existing end, today)
+                current_end_d = existing_subscription.end_date
+                base_d = current_end_d if current_end_d and current_end_d > today.date() else today.date()
+                new_end_date = datetime.combine(base_d, datetime.min.time()) + timedelta(days=requested_days)
+                
+                # Update existing subscription
+                existing_subscription.end_date = new_end_date.date()
+                existing_subscription.account_id = assigned_account.id
+                existing_subscription.is_active = True  # Reactivate if it was inactive
+                existing_subscription.duration_key = request.duration
+                existing_subscription.total_duration_days = (existing_subscription.total_duration_days or 0) + requested_days
+                us = existing_subscription
+            else:
+                # Create new subscription - pick any available account
                 if not available_accounts:
                     raise HTTPException(status_code=400, detail="No available accounts for this service")
-                best_account = None
-                max_available_days = -1
-                for account in available_accounts:
-                    acc_end = account.end_date
-                    if acc_end:
-                        if isinstance(acc_end, date) and not isinstance(acc_end, datetime):
-                            acc_end_dt = datetime.combine(acc_end, dt_time.min)
-                        else:
-                            acc_end_dt = acc_end
-                        days_until_expiry = (acc_end_dt - today).days
-                        if days_until_expiry > max_available_days:
-                            max_available_days = days_until_expiry
-                            best_account = account
-                    # If no end_date, account is always available
-                    if not best_account:
-                        best_account = account
-                        break
-                assigned_account = best_account or available_accounts[0]
+                assigned_account = available_accounts[0]
+                
+                new_end_date = today + timedelta(days=requested_days)
+                us = UserSubscription(
+                    user_id=user.id,
+                    service_id=service_data.id,
+                    account_id=assigned_account.id,
+                    start_date=today.date(),
+                    end_date=new_end_date.date(),
+                    is_active=True,
+                    duration_key=request.duration,
+                    total_duration_days=requested_days,
+                )
+                _db.add(us)
             
-            # No duration validation needed - availability is based on is_active checkbox
-            # Always create a NEW subscription so users can hold multiple accounts for the same service
-            new_end_date = today + timedelta(days=requested_days)
-            us = UserSubscription(
-                user_id=user.id,
-                service_id=service_data.id,
-                account_id=assigned_account.id,
-                start_date=today.date(),
-                end_date=new_end_date.date(),
-                is_active=True,
-                duration_key=request.duration,
-                total_duration_days=requested_days,
-            )
-            _db.add(us)
             if (user.credits or 0) < cost_to_deduct:
                 raise HTTPException(status_code=400, detail="Insufficient credits")
             user.credits = (user.credits or 0) - cost_to_deduct
             await safe_commit(_db, client_error_message="Invalid subscription request", server_error_message="Internal server error")
             
-            # Check and award referral credit if this is user's first subscription
-            await check_and_award_referral_credit(user.id, us.id, _db)
+            # Check and award referral credit if this is user's first subscription (only for new subscriptions)
+            if not is_extension:
+                await check_and_award_referral_credit(user.id, us.id, _db)
             
             updated_credits = user.credits or 0
             return {
-                "message": f"Purchased {duration_config.get('name', request.duration)} for {request.service_name}",
-                "extension": False,
+                "message": f"{'Extended' if is_extension else 'Purchased'} {duration_config.get('name', request.duration)} for {request.service_name}",
+                "extension": is_extension,
                 "new_end_date": format_date(new_end_date),
                 "credits": updated_credits,
                 "cost": cost_to_deduct,
@@ -492,22 +510,21 @@ async def get_user_subscriptions(current_user: User, db: AsyncSession  = None):
         for svc_name in service_names:
             svc = await mdb.services.find_one({"name": svc_name}, {"image": 1, "accounts": 1})
             accounts = (svc or {}).get("accounts") or []
-            # Map all service accounts, regardless of user assignment
+            # Determine inclusion and whether to show credentials
+            user_end = user_end_by_service.get(svc_name, "")
+            user_active = bool(user_active_by_service.get(svc_name, False))
+            # Map all service accounts, using user's subscription end_date and is_active (not account's own dates)
             mapped_accounts = []
             for a in accounts:
                 acc_id = (a or {}).get("account_id", "")
                 pw = (a or {}).get("password_hash", "")
-                end_s = (a or {}).get("end_date", "")
-                is_active = bool((a or {}).get("is_active", True))
+                # Use user's subscription end_date and is_active, not account's own dates
                 mapped_accounts.append({
                     "account_id": acc_id,
                     **({"account_password": pw} if pw else {}),
-                    "end_date": end_s,
-                    "is_active": is_active,
+                    "end_date": user_end,  # User's subscription end_date
+                    "is_active": user_active,  # User's subscription is_active
                 })
-            # Determine inclusion and whether to show credentials
-            user_end = user_end_by_service.get(svc_name, "")
-            user_active = bool(user_active_by_service.get(svc_name, False))
             include_service = True
             show_credentials = user_active
             if not user_active and user_end:
@@ -588,20 +605,19 @@ async def get_user_subscriptions(current_user: User, db: AsyncSession  = None):
                 svc = services_by_id.get(svc_id)
                 service_name = svc.name if svc else "Unknown Service"
                 service_image = svc.image if svc else "https://via.placeholder.com/300x200/6B7280/FFFFFF?text=Service"
-                accs = accounts_by_service.get(svc_id, [])
-                mapped_accounts = []
-                for acc in accs:
-                    end_dt = acc.end_date
-                    end_str = end_dt.strftime("%d/%m/%Y") if end_dt else ""
-                    mapped_accounts.append({
-                        "account_id": acc.account_id,
-                        **({"account_password": acc.password_hash} if acc.password_hash else {}),
-                        "end_date": end_str,
-                        "is_active": bool(acc.is_active),
-                    })
                 # Determine inclusion and whether to show credentials
                 user_end = user_end_by_service.get(svc_id, "")
                 user_active = bool(user_active_by_service.get(svc_id, False))
+                accs = accounts_by_service.get(svc_id, [])
+                mapped_accounts = []
+                for acc in accs:
+                    # Use user's subscription end_date and is_active, not account's own dates
+                    mapped_accounts.append({
+                        "account_id": acc.account_id,
+                        **({"account_password": acc.password_hash} if acc.password_hash else {}),
+                        "end_date": user_end,  # User's subscription end_date
+                        "is_active": user_active,  # User's subscription is_active
+                    })
                 include_service = True
                 show_credentials = user_active
                 if not user_active and user_end:
