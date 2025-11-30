@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { getWallet, createWalletPayment, createPaypalOrder, capturePaypalOrder, createRazorpayOrder, verifyRazorpayPayment } from '../lib/apiClient';
+import { getWallet, createWalletPayment, createPaypalOrder, capturePaypalOrder, createRazorpayOrder, verifyRazorpayPayment, verifyRazorpayPaymentLink } from '../lib/apiClient';
 import { config } from '../config/index';
 import { Button } from '../components/ui';
 import { Spinner, Modal } from '../components/feedback';
@@ -97,8 +97,30 @@ export default function Wallet() {
     const orderId = urlParams.get('razorpay_order_id');
     const paymentId = urlParams.get('razorpay_payment_id');
     const signature = urlParams.get('razorpay_signature');
+    const paymentLinkId = urlParams.get('razorpay_payment_link_id');
     
-    if (razorpayStatus === 'success' && orderId && paymentId && signature) {
+    // Handle Payment Link return (different parameters)
+    if (razorpayStatus === 'success' && paymentLinkId && paymentId) {
+      try {
+        setLoading(true);
+        const result = await verifyRazorpayPaymentLink(paymentLinkId, paymentId);
+        if ((result as any)?.status === 'success') {
+          openModal('Payment Successful', (result as any)?.message || 'Credits added to your wallet.');
+          await fetchWalletData();
+          // Clean URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } else {
+          openModal('Payment Pending', (result as any)?.message || 'Payment is being processed. Credits will be added shortly.');
+        }
+      } catch (error) {
+        console.error('Razorpay Payment Link verification error:', error);
+        openModal('Payment Error', 'Failed to process payment. Please contact support.');
+      } finally {
+        setLoading(false);
+      }
+    }
+    // Handle standard order return
+    else if (razorpayStatus === 'success' && orderId && paymentId && signature) {
       try {
         setLoading(true);
         const result = await verifyRazorpayPayment(orderId, paymentId, signature);
@@ -140,13 +162,26 @@ export default function Wallet() {
           return;
         }
       } else if (provider === 'razorpay') {
-        const resp = await createRazorpayOrder(bundle);
-        const orderData = resp as any;
+        // Use Payment Links by default (no domain registration needed)
+        const resp = await createRazorpayOrder(bundle, true);
+        const paymentData = resp as any;
+        
+        // If payment link is returned, redirect to it
+        if (paymentData.short_url) {
+          window.location.href = paymentData.short_url;
+          return;
+        }
+        
+        // Fallback to embedded checkout if payment link not available
+        const orderData = paymentData;
         
         if (!window.Razorpay) {
           openModal('Payment Error', 'Razorpay SDK not loaded. Please refresh the page.');
           return;
         }
+        
+        // Get current origin for callback URLs
+        const currentOrigin = window.location.origin;
         
         const options = {
           key: orderData.key_id,
@@ -155,6 +190,9 @@ export default function Wallet() {
           name: 'DrogoLabs',
           description: `Wallet top-up: ${orderData.credits} credits`,
           order_id: orderData.order_id,
+          image: '', // Optional: Add your logo URL here
+          callback_url: `${currentOrigin}/wallet?razorpay=success`,
+          redirect: true, // Enable redirect after payment
           handler: async function(response: any) {
             try {
               setLoading(true);
@@ -169,9 +207,10 @@ export default function Wallet() {
               } else {
                 openModal('Payment Error', 'Payment verification failed.');
               }
-            } catch (error) {
+            } catch (error: any) {
               console.error('Razorpay verification error:', error);
-              openModal('Payment Error', 'Failed to verify payment. Please contact support.');
+              const errorMsg = error?.response?.data?.detail || error?.message || 'Failed to verify payment. Please contact support.';
+              openModal('Payment Error', errorMsg);
             } finally {
               setLoading(false);
               setCreating(null);
@@ -188,10 +227,31 @@ export default function Wallet() {
             ondismiss: function() {
               setCreating(null);
             }
+          },
+          notes: {
+            order_from: 'wallet_topup'
           }
         };
         
         const razorpay = new window.Razorpay(options);
+        
+        // Handle payment failures
+        razorpay.on('payment.failed', function(response: any) {
+          console.error('Razorpay payment failed:', response);
+          const errorCode = response.error?.code;
+          const errorDescription = response.error?.description || response.error?.reason || 'Payment failed';
+          
+          let errorMessage = `Payment could not be completed: ${errorDescription}`;
+          
+          // Specific error message for website mismatch
+          if (errorCode === 'BAD_REQUEST_ERROR' && errorDescription?.includes('website does not match')) {
+            errorMessage = 'Payment blocked: Website domain not registered in Razorpay. Please contact support or register your domain in Razorpay Dashboard > Settings > Website & App Settings.';
+          }
+          
+          openModal('Payment Failed', errorMessage);
+          setCreating(null);
+        });
+        
         razorpay.open();
         return;
       } else {

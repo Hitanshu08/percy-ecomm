@@ -87,8 +87,8 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_SECRET: str = None  # Get from Dashboard > Settings > API Keys (Test Mode for sandbox)
     RAZORPAY_WEBHOOK_SECRET: str = None  # Configure in Dashboard > Settings > Webhooks
     RAZORPAY_CURRENCY: str = "INR"
-    RAZORPAY_RETURN_URL: str = "http://localhost:5173/wallet?razorpay=success"
-    RAZORPAY_CANCEL_URL: str = "http://localhost:5173/wallet?razorpay=cancel"
+    RAZORPAY_RETURN_URL: str = "http://localhost:5173/wallet?razorpay=success"  # Override with FRONTEND_URL in production
+    RAZORPAY_CANCEL_URL: str = "http://localhost:5173/wallet?razorpay=cancel"  # Override with FRONTEND_URL in production
     
     # Referral settings
     REFERRAL_CREDIT_AMOUNT: int = 1

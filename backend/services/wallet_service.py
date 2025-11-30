@@ -425,6 +425,117 @@ async def create_razorpay_order(current_user: User, bundle: str) -> Dict[str, An
         logger.exception(f"Error creating Razorpay order: {e}")
         raise HTTPException(status_code=502, detail="Razorpay service unavailable")
 
+async def create_razorpay_payment_link(current_user: User, bundle: str) -> Dict[str, Any]:
+    """Create a Razorpay Payment Link - doesn't require domain registration
+    
+    Creates a payment link that redirects to Razorpay-hosted payment page.
+    This method bypasses the website domain check requirement.
+    
+    Reference: https://razorpay.com/docs/api/payment-links/
+    """
+    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+        logger.error("Razorpay credentials missing in environment")
+        raise HTTPException(status_code=500, detail="Razorpay not configured. Please add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to .env")
+    
+    bundle_info = map_bundle_to_usd_and_credits(bundle)
+    amount_usd = bundle_info["usd"]
+    credits = bundle_info["credits"]
+    
+    # Convert USD to INR using real-time exchange rate from forex-python
+    try:
+        usd_to_inr_rate = c.get_rate('USD', 'INR')
+        logger.info(f"USD to INR exchange rate fetched: {usd_to_inr_rate}")
+    except Exception as e:
+        logger.warning(f"Failed to fetch USD/INR rate from forex-python: {e}. Using fallback rate of 85.0")
+        usd_to_inr_rate = 85.0
+    
+    amount_inr = int(amount_usd * usd_to_inr_rate * 100)  # Amount in paise
+    
+    # Get return URLs - use FRONTEND_URL if available, otherwise use configured URLs
+    frontend_url = getattr(settings, "FRONTEND_URL", None)
+    if frontend_url:
+        return_url = f"{frontend_url}/wallet?razorpay=success"
+    else:
+        return_url = getattr(settings, "RAZORPAY_RETURN_URL", "http://localhost:5173/wallet?razorpay=success")
+    
+    # Create payment link payload
+    payload = {
+        "amount": amount_inr,
+        "currency": getattr(settings, "RAZORPAY_CURRENCY", "INR"),
+        "description": f"Wallet top-up: {credits} credits",
+        "customer": {
+            "name": current_user.username,
+            "email": current_user.email or "",
+            "contact": ""  # Optional: add phone if available
+        },
+        "notify": {
+            "sms": False,
+            "email": False
+        },
+        "reminder_enable": False,
+        "callback_url": return_url,
+        "callback_method": "get",
+        "notes": {
+            "username": current_user.username,
+            "bundle": bundle,
+            "amount_usd": str(amount_usd),
+            "credits": str(credits),
+            "exchange_rate": str(usd_to_inr_rate)
+        }
+    }
+    
+    api_base = "https://api.razorpay.com/v1"
+    payment_links_url = f"{api_base}/payment_links"
+    
+    key_id = settings.RAZORPAY_KEY_ID.strip().strip('"').strip("'")
+    key_secret = settings.RAZORPAY_KEY_SECRET.strip().strip('"').strip("'")
+    auth = aiohttp.BasicAuth(key_id, key_secret)
+    
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(payment_links_url, json=payload, auth=auth, headers=headers, timeout=15) as resp:
+                data = await resp.json()
+                if resp.status >= 400:
+                    error_msg = data.get("error", {}).get("description") or data.get("error", {}).get("reason") or str(data)
+                    logger.error(f"Razorpay create payment link error: {resp.status} {data}")
+                    raise HTTPException(status_code=502, detail=f"Razorpay payment link creation failed: {error_msg}")
+                
+                short_url = data.get("short_url")
+                if not short_url:
+                    logger.error(f"No short_url in Razorpay response: {data}")
+                    raise HTTPException(status_code=502, detail="Invalid Razorpay payment link response")
+                
+                return {
+                    "payment_link_id": data.get("id"),
+                    "short_url": short_url,
+                    "amount": amount_inr,
+                    "currency": payload["currency"],
+                    "amount_usd": amount_usd,
+                    "credits": credits,
+                    "username": current_user.username,
+                    "bundle": bundle
+                }
+    except aiohttp.ClientError as e:
+        logger.error(f"Razorpay connection error: {e}")
+        raise HTTPException(status_code=502, detail="Unable to connect to Razorpay API")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error creating Razorpay payment link: {e}")
+        raise HTTPException(status_code=502, detail="Razorpay service unavailable")
+    except aiohttp.ClientError as e:
+        logger.error(f"Razorpay connection error: {e}")
+        raise HTTPException(status_code=502, detail="Unable to connect to Razorpay API")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error creating Razorpay order: {e}")
+        raise HTTPException(status_code=502, detail="Razorpay service unavailable")
+
 def _verify_razorpay_signature(order_id: str, payment_id: str, signature: str) -> bool:
     """Verify Razorpay payment signature using HMAC SHA256
     
@@ -443,6 +554,98 @@ def _verify_razorpay_signature(order_id: str, payment_id: str, signature: str) -
     ).hexdigest()
     
     return hmac.compare_digest(generated_signature, signature)
+
+async def verify_razorpay_payment_link(payment_link_id: str, payment_id: str) -> Dict[str, Any]:
+    """Verify Razorpay Payment Link payment and credit user's wallet
+    
+    Payment Links don't use order_id, so we get payment details from payment_link_id.
+    Reference: https://razorpay.com/docs/api/payment-links/
+    """
+    api_base = "https://api.razorpay.com/v1"
+    key_id = settings.RAZORPAY_KEY_ID.strip().strip('"').strip("'")
+    key_secret = settings.RAZORPAY_KEY_SECRET.strip().strip('"').strip("'")
+    auth = aiohttp.BasicAuth(key_id, key_secret)
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            headers = {"Content-Type": "application/json"}
+            
+            # Get payment details
+            payment_url = f"{api_base}/payments/{payment_id}"
+            async with session.get(payment_url, auth=auth, headers=headers, timeout=15) as resp:
+                payment_data = await resp.json()
+                if resp.status >= 400:
+                    logger.error(f"Razorpay get payment error: {resp.status} {payment_data}")
+                    raise HTTPException(status_code=502, detail="Failed to retrieve payment details")
+                
+                payment_status = payment_data.get("status")
+                if payment_status != "captured" and payment_status != "authorized":
+                    logger.warning(f"Razorpay payment {payment_id} not captured: {payment_status}")
+                    return {
+                        "status": payment_status,
+                        "payment_link_id": payment_link_id,
+                        "payment_id": payment_id,
+                        "message": f"Payment status: {payment_status}"
+                    }
+            
+            # Get payment link details to extract notes
+            payment_link_url = f"{api_base}/payment_links/{payment_link_id}"
+            async with session.get(payment_link_url, auth=auth, headers=headers, timeout=15) as link_resp:
+                link_data = await link_resp.json()
+                if link_resp.status >= 400:
+                    logger.error(f"Razorpay get payment link error: {link_resp.status} {link_data}")
+                    raise HTTPException(status_code=502, detail="Failed to retrieve payment link details")
+                
+                notes = link_data.get("notes", {})
+                username = notes.get("username", "")
+                bundle = notes.get("bundle", "")
+                
+                if not username or not bundle:
+                    logger.error(f"Invalid payment link notes: {notes}")
+                    raise HTTPException(status_code=400, detail="Invalid payment link format")
+                
+                bundle_info = map_bundle_to_usd_and_credits(bundle)
+                credits = bundle_info["credits"]
+                
+                # Credit the user
+                if settings.USE_MONGO:
+                    mdb = get_mongo_db()
+                    if mdb is None:
+                        raise HTTPException(status_code=500, detail="Mongo not available")
+                    res = await mdb.users.update_one({"username": username}, {"$inc": {"credits": int(credits)}})
+                    if res.matched_count == 0:
+                        logger.error(f"User {username} not found for Razorpay credit")
+                        raise HTTPException(status_code=404, detail="User not found")
+                    doc = await mdb.users.find_one({"username": username}, {"credits": 1})
+                    new_balance = int((doc or {}).get("credits", 0))
+                else:
+                    async with get_or_use_session(None) as _db:
+                        result = await _db.execute(select(UserModel).where(UserModel.username == username))
+                        user = result.scalars().first()
+                        if not user:
+                            logger.error(f"User {username} not found for Razorpay credit")
+                            raise HTTPException(status_code=404, detail="User not found")
+                        user.credits = (user.credits or 0) + int(credits)
+                        new_balance = user.credits
+                        await _db.commit()
+                
+                logger.info(f"Razorpay Payment Link: Credited {credits} credits to user {username}, new balance: {new_balance}")
+                return {
+                    "status": "success",
+                    "payment_link_id": payment_link_id,
+                    "payment_id": payment_id,
+                    "credits_added": credits,
+                    "new_balance": new_balance,
+                    "message": f"Successfully added {credits} credits to your wallet"
+                }
+    except aiohttp.ClientError as e:
+        logger.error(f"Razorpay connection error: {e}")
+        raise HTTPException(status_code=502, detail="Unable to connect to Razorpay API")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error verifying Razorpay payment link: {e}")
+        raise HTTPException(status_code=502, detail="Razorpay verification failed")
 
 async def verify_razorpay_payment(order_id: str, payment_id: str, signature: str) -> Dict[str, Any]:
     """Verify Razorpay payment and credit user's wallet
@@ -575,7 +778,50 @@ async def handle_razorpay_webhook(raw_body: bytes, headers_map: Dict[str, str]) 
         
         event = payload.get("event")
         payment_entity = payload.get("payload", {}).get("payment", {}).get("entity", {})
+        payment_link_entity = payload.get("payload", {}).get("payment_link", {}).get("entity", {})
         
+        # Handle Payment Link events
+        if event == "payment_link.paid":
+            payment_link_id = payment_link_entity.get("id")
+            payment_id = payment_entity.get("id") if payment_entity else None
+            
+            if payment_link_id and payment_id:
+                api_base = "https://api.razorpay.com/v1"
+                key_id = settings.RAZORPAY_KEY_ID.strip().strip('"').strip("'")
+                key_secret = settings.RAZORPAY_KEY_SECRET.strip().strip('"').strip("'")
+                auth = aiohttp.BasicAuth(key_id, key_secret)
+                
+                async with aiohttp.ClientSession() as session:
+                    payment_link_url = f"{api_base}/payment_links/{payment_link_id}"
+                    headers = {"Content-Type": "application/json"}
+                    
+                    async with session.get(payment_link_url, auth=auth, headers=headers, timeout=15) as resp:
+                        link_data = await resp.json()
+                        if resp.status < 400:
+                            notes = link_data.get("notes", {})
+                            username = notes.get("username", "")
+                            bundle = notes.get("bundle", "")
+                            
+                            if username and bundle:
+                                bundle_info = map_bundle_to_usd_and_credits(bundle)
+                                credits = bundle_info["credits"]
+                                
+                                # Credit the user
+                                if settings.USE_MONGO:
+                                    mdb = get_mongo_db()
+                                    if mdb:
+                                        await mdb.users.update_one({"username": username}, {"$inc": {"credits": int(credits)}})
+                                else:
+                                    async with get_or_use_session(None) as _db:
+                                        result = await _db.execute(select(UserModel).where(UserModel.username == username))
+                                        user = result.scalars().first()
+                                        if user:
+                                            user.credits = (user.credits or 0) + int(credits)
+                                            await _db.commit()
+                                
+                                logger.info(f"Razorpay Payment Link webhook: Credited {credits} credits to user {username}")
+        
+        # Handle standard payment events
         if event == "payment.captured":
             payment_id = payment_entity.get("id")
             order_id = payment_entity.get("order_id")
