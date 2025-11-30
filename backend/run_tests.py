@@ -24,6 +24,33 @@ def run_command(command, description):
         return False
 
 
+def show_test_groups():
+    """Display information about available test groups/markers."""
+    print("\n" + "="*60)
+    print("BACKEND TEST GROUPS (Pytest Markers)")
+    print("="*60)
+    print("\nAvailable test markers:")
+    print("\n  📦 Test Types:")
+    print("     • unit           - Unit tests")
+    print("     • integration    - Integration tests")
+    print("     • e2e            - End-to-end tests")
+    print("\n  🏷️  Feature Categories:")
+    print("     • auth           - Authentication related tests")
+    print("     • api            - API endpoint tests")
+    print("     • service        - Service layer tests")
+    print("     • database       - Database related tests")
+    print("\n  ⚡ Performance:")
+    print("     • slow           - Slow running tests")
+    print("\n" + "="*60)
+    print("\nUsage Examples:")
+    print("  python run_tests.py --type unit              # Run unit tests")
+    print("  python run_tests.py -m auth                  # Run auth tests")
+    print("  python run_tests.py -m 'auth and not slow'   # Run auth tests excluding slow ones")
+    print("  pytest --markers                              # List all pytest markers")
+    print("  pytest --collect-only -m unit                # List tests in unit group")
+    print("\n" + "="*60 + "\n")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run backend tests")
     parser.add_argument(
@@ -46,8 +73,23 @@ def main():
         action="store_true",
         help="Run tests in parallel"
     )
+    parser.add_argument(
+        "--info",
+        action="store_true",
+        help="Show information about available test groups"
+    )
+    parser.add_argument(
+        "--list-groups",
+        action="store_true",
+        help="List all available test groups/markers (alias for --info)"
+    )
     
     args = parser.parse_args()
+    
+    # Show test groups info if requested
+    if args.info or args.list_groups:
+        show_test_groups()
+        sys.exit(0)
     
     # Change to backend directory
     backend_dir = os.path.dirname(os.path.abspath(__file__))

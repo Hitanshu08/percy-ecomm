@@ -20,6 +20,7 @@ import NotFound from "./pages/NotFound";
 import TermsAndConditions from "./components/TermsAndConditions";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import EmailVerification from "./pages/EmailVerification";
+import Giveaway from "./pages/Giveaway";
 
 // Admin Route Component
 function AdminRoute({ children }: { children: React.ReactNode }) {
@@ -47,6 +48,7 @@ function AppLayout() {
           <Route path="/shop" element={config.isFeatureEnabled('shop') ? <Shop /> : <AccessDenied />} />
           <Route path="/subscriptions" element={<Subscriptions />} />
           <Route path="/contact" element={<ContactUs />} />
+          <Route path="/giveaway" element={<Giveaway />} />
           <Route path="/terms" element={<TermsAndConditions />} />
           <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           <Route path="/access-denied" element={<AccessDenied />} />

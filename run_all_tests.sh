@@ -47,6 +47,47 @@ run_command() {
     fi
 }
 
+# Function to show test groups information
+show_test_groups_info() {
+    echo ""
+    echo "========================================"
+    echo "       TEST GROUPS INFORMATION"
+    echo "========================================"
+    echo ""
+    
+    # Show backend test groups
+    if [ -f "$BACKEND_DIR/run_tests.py" ]; then
+        echo "📦 BACKEND TEST GROUPS:"
+        echo "   Run: cd backend && python run_tests.py --info"
+        echo ""
+        cd "$BACKEND_DIR" && python run_tests.py --info 2>/dev/null || echo "   (Backend test runner not available)"
+        cd "$PROJECT_ROOT"
+    fi
+    
+    echo ""
+    echo "----------------------------------------"
+    echo ""
+    
+    # Show frontend test groups
+    if [ -f "$FRONTEND_DIR/run_tests.js" ]; then
+        echo "🌐 FRONTEND TEST GROUPS:"
+        echo "   Run: cd frontend && node run_tests.js --info"
+        echo ""
+        cd "$FRONTEND_DIR" && node run_tests.js --info 2>/dev/null || echo "   (Frontend test runner not available)"
+        cd "$PROJECT_ROOT"
+    fi
+    
+    echo ""
+    echo "========================================"
+    echo ""
+    echo "Quick Commands:"
+    echo "  Backend:    cd backend && python run_tests.py --info"
+    echo "  Frontend:   cd frontend && node run_tests.js --info"
+    echo "  All Info:   $0 --info"
+    echo ""
+    exit 0
+}
+
 # Parse command line arguments
 BACKEND_TESTS=true
 FRONTEND_TESTS=true
@@ -55,6 +96,7 @@ FRONTEND_TYPE="all"
 VERBOSE=false
 COVERAGE=false
 INSTALL_DEPS=false
+SHOW_INFO=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -86,6 +128,10 @@ while [[ $# -gt 0 ]]; do
             INSTALL_DEPS=true
             shift
             ;;
+        --info|--list-groups|-i)
+            SHOW_INFO=true
+            shift
+            ;;
         --help|-h)
             echo "Usage: $0 [OPTIONS]"
             echo ""
@@ -97,6 +143,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --verbose, -v         Verbose output"
             echo "  --coverage, -c        Generate coverage reports"
             echo "  --install-deps        Install dependencies before running tests"
+            echo "  --info, -i            Show information about available test groups"
             echo "  --help, -h            Show this help message"
             echo ""
             echo "Examples:"

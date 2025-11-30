@@ -493,6 +493,18 @@ export async function capturePaypalOrder(orderId: string) {
   });
 }
 
+export async function createRazorpayOrder(bundle: '1'|'2'|'5'|'10'|'20'|'50') {
+  return apiCall(`${API_URL}/wallet/payment/razorpay/create?bundle=${encodeURIComponent(bundle)}`, {
+    method: 'POST'
+  });
+}
+
+export async function verifyRazorpayPayment(orderId: string, paymentId: string, signature: string) {
+  return apiCall(`${API_URL}/wallet/payment/razorpay/verify?order_id=${encodeURIComponent(orderId)}&payment_id=${encodeURIComponent(paymentId)}&signature=${encodeURIComponent(signature)}`, {
+    method: 'POST'
+  });
+}
+
 export async function getSubscriptions() {
   return apiCall(`${API_URL}/subscriptions`);
 }

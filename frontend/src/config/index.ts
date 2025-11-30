@@ -92,6 +92,7 @@ class ConfigManager {
       { path: '/wallet', label: 'Wallet', icon: 'wallet' },
       { path: '/shop', label: 'Shop', icon: 'shopping' },
       { path: '/subscriptions', label: 'Subscriptions', icon: 'subscription' },
+      { path: '/giveaway', label: 'Giveaway', icon: 'gift' },
       { path: '/contact', label: 'Contact', icon: 'contact' }
     ];
   }

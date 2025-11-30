@@ -13,8 +13,10 @@ import hmac
 import hashlib
 import base64
 from typing import Dict, Any
+from forex_python.converter import CurrencyRates
 
 logger = logging.getLogger(__name__)
+c = CurrencyRates()
 
 USD_TO_CREDITS_RATE = 1  # 1 USD = 1 credit base rate
 
@@ -325,6 +327,303 @@ async def capture_paypal_order(order_id: str) -> Dict[str, Any]:
                 "new_balance": new_balance,
                 "message": f"Successfully added {credits} credits to your wallet"
             }
+
+# --------------- Razorpay Integration ---------------
+# Reference: https://razorpay.com/docs/api/orders/
+# API Gateway: https://api.razorpay.com/v1
+# Authentication: Basic Auth with key_id:key_secret
+async def create_razorpay_order(current_user: User, bundle: str) -> Dict[str, Any]:
+    """Create a Razorpay order and return order details
+    
+    Creates an order using Razorpay Orders API.
+    Amount is converted from USD to INR (in paise - smallest currency unit).
+    Uses forex-python for real-time exchange rates with fallback to default rate.
+    Test/Live mode is determined by the API keys used (test keys for sandbox).
+    
+    Reference: https://razorpay.com/docs/api/orders/#create-an-order
+    """
+    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+        logger.error("Razorpay credentials missing in environment")
+        raise HTTPException(status_code=500, detail="Razorpay not configured. Please add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to .env")
+    
+    bundle_info = map_bundle_to_usd_and_credits(bundle)
+    amount_usd = bundle_info["usd"]
+    credits = bundle_info["credits"]
+    
+    # Convert USD to INR using real-time exchange rate from forex-python
+    try:
+        usd_to_inr_rate = c.get_rate('USD', 'INR')
+        logger.info(f"USD to INR exchange rate fetched: {usd_to_inr_rate}")
+    except Exception as e:
+        # Fallback to default rate if API fails (network issues, rate limit, etc.)
+        logger.warning(f"Failed to fetch USD/INR rate from forex-python: {e}. Using fallback rate of 83.0")
+        usd_to_inr_rate = 85.0  # Fallback rate
+    
+    amount_inr = int(amount_usd * usd_to_inr_rate * 100)  # Amount in paise (smallest currency unit)
+    
+    # Create order payload
+    order_id_prefix = f"wallet_{current_user.username}_{bundle}_{amount_usd}"
+    notes = {
+        "username": current_user.username,
+        "bundle": bundle,
+        "amount_usd": str(amount_usd),
+        "credits": str(credits),
+        "exchange_rate": str(usd_to_inr_rate)  # Store rate used for reference
+    }
+    
+    payload = {
+        "amount": amount_inr,
+        "currency": getattr(settings, "RAZORPAY_CURRENCY", "INR"),
+        "receipt": order_id_prefix,
+        "notes": notes
+    }
+    
+    # Razorpay API endpoint (same URL for both sandbox and production)
+    # Sandbox is determined by using test keys vs live keys
+    api_base = "https://api.razorpay.com/v1"
+    orders_url = f"{api_base}/orders"
+    
+    # Basic auth with key_id:key_secret
+    key_id = settings.RAZORPAY_KEY_ID.strip().strip('"').strip("'")
+    key_secret = settings.RAZORPAY_KEY_SECRET.strip().strip('"').strip("'")
+    auth = aiohttp.BasicAuth(key_id, key_secret)
+    
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(orders_url, json=payload, auth=auth, headers=headers, timeout=15) as resp:
+                data = await resp.json()
+                if resp.status >= 400:
+                    error_msg = data.get("error", {}).get("description") or data.get("error", {}).get("reason") or str(data)
+                    logger.error(f"Razorpay create order error: {resp.status} {data}")
+                    raise HTTPException(status_code=502, detail=f"Razorpay order creation failed: {error_msg}")
+                
+                razorpay_order_id = data.get("id")
+                if not razorpay_order_id:
+                    logger.error(f"No order ID in Razorpay response: {data}")
+                    raise HTTPException(status_code=502, detail="Invalid Razorpay order response")
+                
+                return {
+                    "order_id": razorpay_order_id,
+                    "amount": amount_inr,
+                    "currency": payload["currency"],
+                    "key_id": key_id,
+                    "amount_usd": amount_usd,
+                    "credits": credits,
+                    "username": current_user.username,
+                    "bundle": bundle
+                }
+    except aiohttp.ClientError as e:
+        logger.error(f"Razorpay connection error: {e}")
+        raise HTTPException(status_code=502, detail="Unable to connect to Razorpay API")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error creating Razorpay order: {e}")
+        raise HTTPException(status_code=502, detail="Razorpay service unavailable")
+
+def _verify_razorpay_signature(order_id: str, payment_id: str, signature: str) -> bool:
+    """Verify Razorpay payment signature using HMAC SHA256
+    
+    Signature format: HMAC SHA256 of (order_id|payment_id) using key_secret
+    Reference: https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/verify-payment-signature/
+    """
+    if not settings.RAZORPAY_KEY_SECRET or not signature:
+        return False
+    
+    key_secret = settings.RAZORPAY_KEY_SECRET.strip().strip('"').strip("'")
+    message = f"{order_id}|{payment_id}"
+    generated_signature = hmac.new(
+        key_secret.encode('utf-8'),
+        message.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+    
+    return hmac.compare_digest(generated_signature, signature)
+
+async def verify_razorpay_payment(order_id: str, payment_id: str, signature: str) -> Dict[str, Any]:
+    """Verify Razorpay payment and credit user's wallet
+    
+    Verifies payment signature and status, then credits the user's wallet.
+    Reference: https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/verify-payment-signature/
+    """
+    if not _verify_razorpay_signature(order_id, payment_id, signature):
+        logger.warning(f"Invalid Razorpay signature for order {order_id}")
+        raise HTTPException(status_code=400, detail="Invalid payment signature")
+    
+    # Get order details from Razorpay to verify
+    api_base = "https://api.razorpay.com/v1"
+    key_id = settings.RAZORPAY_KEY_ID.strip().strip('"').strip("'")
+    key_secret = settings.RAZORPAY_KEY_SECRET.strip().strip('"').strip("'")
+    auth = aiohttp.BasicAuth(key_id, key_secret)
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            # Get payment details
+            payment_url = f"{api_base}/payments/{payment_id}"
+            headers = {"Content-Type": "application/json"}
+            
+            async with session.get(payment_url, auth=auth, headers=headers, timeout=15) as resp:
+                payment_data = await resp.json()
+                if resp.status >= 400:
+                    logger.error(f"Razorpay get payment error: {resp.status} {payment_data}")
+                    raise HTTPException(status_code=502, detail="Failed to retrieve payment details")
+                
+                payment_status = payment_data.get("status")
+                if payment_status != "captured" and payment_status != "authorized":
+                    logger.warning(f"Razorpay payment {payment_id} not captured: {payment_status}")
+                    return {
+                        "status": payment_status,
+                        "order_id": order_id,
+                        "payment_id": payment_id,
+                        "message": f"Payment status: {payment_status}"
+                    }
+                
+                # Get order details to extract notes
+                order_url = f"{api_base}/orders/{order_id}"
+                async with session.get(order_url, auth=auth, headers=headers, timeout=15) as order_resp:
+                    order_data = await order_resp.json()
+                    if order_resp.status >= 400:
+                        logger.error(f"Razorpay get order error: {order_resp.status} {order_data}")
+                        raise HTTPException(status_code=502, detail="Failed to retrieve order details")
+                    
+                    notes = order_data.get("notes", {})
+                    username = notes.get("username", "")
+                    bundle = notes.get("bundle", "")
+                    
+                    if not username or not bundle:
+                        logger.error(f"Invalid order notes: {notes}")
+                        raise HTTPException(status_code=400, detail="Invalid order format")
+                    
+                    bundle_info = map_bundle_to_usd_and_credits(bundle)
+                    credits = bundle_info["credits"]
+                    
+                    # Credit the user
+                    if settings.USE_MONGO:
+                        mdb = get_mongo_db()
+                        if mdb is None:
+                            raise HTTPException(status_code=500, detail="Mongo not available")
+                        res = await mdb.users.update_one({"username": username}, {"$inc": {"credits": int(credits)}})
+                        if res.matched_count == 0:
+                            logger.error(f"User {username} not found for Razorpay credit")
+                            raise HTTPException(status_code=404, detail="User not found")
+                        doc = await mdb.users.find_one({"username": username}, {"credits": 1})
+                        new_balance = int((doc or {}).get("credits", 0))
+                    else:
+                        async with get_or_use_session(None) as _db:
+                            result = await _db.execute(select(UserModel).where(UserModel.username == username))
+                            user = result.scalars().first()
+                            if not user:
+                                logger.error(f"User {username} not found for Razorpay credit")
+                                raise HTTPException(status_code=404, detail="User not found")
+                            user.credits = (user.credits or 0) + int(credits)
+                            new_balance = user.credits
+                            await _db.commit()
+                    
+                    logger.info(f"Razorpay: Credited {credits} credits to user {username}, new balance: {new_balance}")
+                    return {
+                        "status": "success",
+                        "order_id": order_id,
+                        "payment_id": payment_id,
+                        "credits_added": credits,
+                        "new_balance": new_balance,
+                        "message": f"Successfully added {credits} credits to your wallet"
+                    }
+    except aiohttp.ClientError as e:
+        logger.error(f"Razorpay connection error: {e}")
+        raise HTTPException(status_code=502, detail="Unable to connect to Razorpay API")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error verifying Razorpay payment: {e}")
+        raise HTTPException(status_code=502, detail="Razorpay verification failed")
+
+async def handle_razorpay_webhook(raw_body: bytes, headers_map: Dict[str, str]) -> Dict[str, Any]:
+    """Handle Razorpay webhook for payment events
+    
+    Processes webhook events from Razorpay, particularly payment.captured events.
+    Webhook signature is verified using HMAC SHA256.
+    
+    Reference: https://razorpay.com/docs/webhooks/
+    """
+    try:
+        import json
+        payload = json.loads(raw_body.decode("utf-8"))
+        
+        # Verify webhook signature
+        webhook_signature = headers_map.get("x-razorpay-signature") or headers_map.get("X-Razorpay-Signature")
+        if not webhook_signature or not settings.RAZORPAY_WEBHOOK_SECRET:
+            logger.warning("Razorpay webhook signature missing or secret not configured")
+            # Continue without signature verification if secret not set (for development)
+            if settings.RAZORPAY_WEBHOOK_SECRET:
+                raise HTTPException(status_code=400, detail="invalid_signature")
+        else:
+            # Verify webhook signature
+            key_secret = settings.RAZORPAY_WEBHOOK_SECRET.strip().strip('"').strip("'")
+            generated_signature = hmac.new(
+                key_secret.encode('utf-8'),
+                raw_body,
+                hashlib.sha256
+            ).hexdigest()
+            
+            if not hmac.compare_digest(generated_signature, webhook_signature):
+                logger.warning("Invalid Razorpay webhook signature")
+                raise HTTPException(status_code=400, detail="invalid_signature")
+        
+        event = payload.get("event")
+        payment_entity = payload.get("payload", {}).get("payment", {}).get("entity", {})
+        
+        if event == "payment.captured":
+            payment_id = payment_entity.get("id")
+            order_id = payment_entity.get("order_id")
+            status = payment_entity.get("status")
+            
+            if status == "captured" and payment_id and order_id:
+                # Get order details
+                api_base = "https://api.razorpay.com/v1"
+                key_id = settings.RAZORPAY_KEY_ID.strip().strip('"').strip("'")
+                key_secret = settings.RAZORPAY_KEY_SECRET.strip().strip('"').strip("'")
+                auth = aiohttp.BasicAuth(key_id, key_secret)
+                
+                async with aiohttp.ClientSession() as session:
+                    order_url = f"{api_base}/orders/{order_id}"
+                    headers = {"Content-Type": "application/json"}
+                    
+                    async with session.get(order_url, auth=auth, headers=headers, timeout=15) as resp:
+                        order_data = await resp.json()
+                        if resp.status < 400:
+                            notes = order_data.get("notes", {})
+                            username = notes.get("username", "")
+                            bundle = notes.get("bundle", "")
+                            
+                            if username and bundle:
+                                bundle_info = map_bundle_to_usd_and_credits(bundle)
+                                credits = bundle_info["credits"]
+                                
+                                # Credit the user
+                                if settings.USE_MONGO:
+                                    mdb = get_mongo_db()
+                                    if mdb:
+                                        await mdb.users.update_one({"username": username}, {"$inc": {"credits": int(credits)}})
+                                else:
+                                    async with get_or_use_session(None) as _db:
+                                        result = await _db.execute(select(UserModel).where(UserModel.username == username))
+                                        user = result.scalars().first()
+                                        if user:
+                                            user.credits = (user.credits or 0) + int(credits)
+                                            await _db.commit()
+                                
+                                logger.info(f"Razorpay webhook: Credited {credits} credits to user {username}")
+        
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Razorpay webhook processing failed: {e}")
+        raise HTTPException(status_code=500, detail="webhook_error")
 
 async def get_wallet_info(current_user: User):
     """Get wallet information for the current user including per-subscription credits"""

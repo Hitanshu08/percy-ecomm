@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { getWallet, createWalletPayment, createPaypalOrder, capturePaypalOrder } from '../lib/apiClient';
+import { getWallet, createWalletPayment, createPaypalOrder, capturePaypalOrder, createRazorpayOrder, verifyRazorpayPayment } from '../lib/apiClient';
 import { config } from '../config/index';
 import { Button } from '../components/ui';
 import { Spinner, Modal } from '../components/feedback';
 import { WalletCard } from '../features/wallet/components';
+
+// Declare Razorpay types
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
 
 interface WalletData {
   credits: number;
@@ -17,7 +24,7 @@ export default function Wallet() {
   const [walletData, setWalletData] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState<string | null>(null);
-  const [provider, setProvider] = useState<'nowpayments' | 'paypal'>('paypal');
+  const [provider, setProvider] = useState<'nowpayments' | 'paypal' | 'razorpay'>('paypal');
   const [selectedBundle, setSelectedBundle] = useState<'1'|'2'|'5'|'10'|'20'|'50' | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState<string | undefined>(undefined);
@@ -32,7 +39,19 @@ export default function Wallet() {
   useEffect(() => {
     fetchWalletData();
     handlePayPalReturn();
+    handleRazorpayReturn();
+    loadRazorpayScript();
   }, []);
+
+  const loadRazorpayScript = () => {
+    if (window.Razorpay) {
+      return; // Already loaded
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    document.body.appendChild(script);
+  };
 
   const fetchWalletData = async () => {
     try {
@@ -72,6 +91,35 @@ export default function Wallet() {
     }
   };
 
+  const handleRazorpayReturn = async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const razorpayStatus = urlParams.get('razorpay');
+    const orderId = urlParams.get('razorpay_order_id');
+    const paymentId = urlParams.get('razorpay_payment_id');
+    const signature = urlParams.get('razorpay_signature');
+    
+    if (razorpayStatus === 'success' && orderId && paymentId && signature) {
+      try {
+        setLoading(true);
+        const result = await verifyRazorpayPayment(orderId, paymentId, signature);
+        if ((result as any)?.status === 'success') {
+          openModal('Payment Successful', (result as any)?.message || 'Credits added to your wallet.');
+          await fetchWalletData();
+          // Clean URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      } catch (error) {
+        console.error('Razorpay verification error:', error);
+        openModal('Payment Error', 'Failed to process payment. Please contact support.');
+      } finally {
+        setLoading(false);
+      }
+    } else if (razorpayStatus === 'cancel') {
+      openModal('Payment Cancelled', 'Payment was cancelled.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  };
+
   const bundles: Array<{ label: string; sub?: string; bundle: '1'|'2'|'5'|'10'|'20'|'50' }> = [
     { label: '$1', sub: '1 credit', bundle: '1' },
     { label: '$2', sub: '2 credits', bundle: '2' },
@@ -91,6 +139,61 @@ export default function Wallet() {
           window.location.href = url;
           return;
         }
+      } else if (provider === 'razorpay') {
+        const resp = await createRazorpayOrder(bundle);
+        const orderData = resp as any;
+        
+        if (!window.Razorpay) {
+          openModal('Payment Error', 'Razorpay SDK not loaded. Please refresh the page.');
+          return;
+        }
+        
+        const options = {
+          key: orderData.key_id,
+          amount: orderData.amount,
+          currency: orderData.currency,
+          name: 'DrogoLabs',
+          description: `Wallet top-up: ${orderData.credits} credits`,
+          order_id: orderData.order_id,
+          handler: async function(response: any) {
+            try {
+              setLoading(true);
+              const verifyResult = await verifyRazorpayPayment(
+                response.razorpay_order_id,
+                response.razorpay_payment_id,
+                response.razorpay_signature
+              );
+              if ((verifyResult as any)?.status === 'success') {
+                openModal('Payment Successful', (verifyResult as any)?.message || 'Credits added to your wallet.');
+                await fetchWalletData();
+              } else {
+                openModal('Payment Error', 'Payment verification failed.');
+              }
+            } catch (error) {
+              console.error('Razorpay verification error:', error);
+              openModal('Payment Error', 'Failed to verify payment. Please contact support.');
+            } finally {
+              setLoading(false);
+              setCreating(null);
+            }
+          },
+          prefill: {
+            name: user?.username || '',
+            email: user?.email || '',
+          },
+          theme: {
+            color: '#3B82F6',
+          },
+          modal: {
+            ondismiss: function() {
+              setCreating(null);
+            }
+          }
+        };
+        
+        const razorpay = new window.Razorpay(options);
+        razorpay.open();
+        return;
       } else {
         const resp = await createWalletPayment(bundle);
         const url = (resp as any)?.checkout_url;
@@ -193,7 +296,26 @@ export default function Wallet() {
 
               {/* Provider toggle */}
               <div className="mb-4 flex gap-3">
-                <button className={`px-3 py-2 rounded border bg-blue-600 text-white cursor-default`}>PayPal</button>
+                <button
+                  onClick={() => setProvider('paypal')}
+                  className={`px-3 py-2 rounded border transition ${
+                    provider === 'paypal'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  PayPal (Other than India)
+                </button>
+                <button
+                  onClick={() => setProvider('razorpay')}
+                  className={`px-3 py-2 rounded border transition ${
+                    provider === 'razorpay'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  Razorpay (India)
+                </button>
               </div>
 
               {/* Simple Conversion Display */}
@@ -238,7 +360,7 @@ export default function Wallet() {
                     disabled={!selectedBundle || creating !== null}
                     variant="primary"
                   >
-                    {creating ? 'Processing…' : 'Continue to PayPal'}
+                    {creating ? 'Processing…' : provider === 'razorpay' ? 'Pay with Razorpay (India)' : 'Continue to PayPal (Other than India)'}
                   </Button>
                 </div>
               </div>

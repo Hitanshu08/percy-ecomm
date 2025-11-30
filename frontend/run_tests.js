@@ -35,6 +35,41 @@ function runCommand(command, args = [], description) {
   });
 }
 
+function showTestGroups() {
+  console.log('\n' + '='.repeat(60));
+  console.log('FRONTEND TEST GROUPS');
+  console.log('='.repeat(60));
+  console.log('\nAvailable test types:');
+  console.log('\n  📦 Unit Tests:');
+  console.log('     • Components     - React component tests');
+  console.log('     • Pages          - Page component tests');
+  console.log('     • Utils          - Utility function tests');
+  console.log('     • Hooks          - Custom React hooks tests');
+  console.log('\n  🌐 E2E Tests:');
+  console.log('     • auth           - Authentication flows');
+  console.log('     • dashboard      - Dashboard functionality');
+  console.log('     • shop           - Shop and purchasing');
+  console.log('     • navigation     - Navigation and routing');
+  console.log('\n  🎯 Test Modes:');
+  console.log('     • unit           - Run unit tests');
+  console.log('     • e2e            - Run end-to-end tests');
+  console.log('     • all            - Run all tests');
+  console.log('\n  ⚙️  Options:');
+  console.log('     • --watch        - Watch mode (unit tests)');
+  console.log('     • --ui           - UI mode for test runner');
+  console.log('     • --coverage     - Generate coverage report');
+  console.log('     • --headed       - Show browser (e2e tests)');
+  console.log('\n' + '='.repeat(60));
+  console.log('\nUsage Examples:');
+  console.log('  node run_tests.js unit                  # Run unit tests');
+  console.log('  node run_tests.js e2e                   # Run e2e tests');
+  console.log('  node run_tests.js unit --coverage       # Unit tests with coverage');
+  console.log('  node run_tests.js e2e --ui              # E2E tests with UI');
+  console.log('  npm run test:run                        # Run unit tests');
+  console.log('  npm run test:e2e                        # Run e2e tests');
+  console.log('\n' + '='.repeat(60) + '\n');
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const type = args[0] || 'all';
@@ -42,6 +77,13 @@ async function main() {
   const watch = args.includes('--watch') || args.includes('-w');
   const ui = args.includes('--ui') || args.includes('-u');
   const coverage = args.includes('--coverage') || args.includes('-c');
+  const info = args.includes('--info') || args.includes('--list-groups') || args.includes('-i');
+
+  // Show test groups info if requested
+  if (info) {
+    showTestGroups();
+    process.exit(0);
+  }
 
   try {
     switch (type) {

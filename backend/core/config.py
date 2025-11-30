@@ -79,6 +79,17 @@ class Settings(BaseSettings):
     PAYPAL_RETURN_URL: str = "http://localhost:5173/wallet?paypal=success"
     PAYPAL_CANCEL_URL: str = "http://localhost:5173/wallet?paypal=cancel"
     
+    # Razorpay (Sandbox by default)
+    # Note: Razorpay uses the same API URL (https://api.razorpay.com/v1) for both test and live modes
+    # Sandbox is determined by using test keys (from Test Mode) vs live keys (from Live Mode)
+    # Reference: https://razorpay.com/docs/api/
+    RAZORPAY_KEY_ID: str = None  # Get from Dashboard > Settings > API Keys (Test Mode for sandbox)
+    RAZORPAY_KEY_SECRET: str = None  # Get from Dashboard > Settings > API Keys (Test Mode for sandbox)
+    RAZORPAY_WEBHOOK_SECRET: str = None  # Configure in Dashboard > Settings > Webhooks
+    RAZORPAY_CURRENCY: str = "INR"
+    RAZORPAY_RETURN_URL: str = "http://localhost:5173/wallet?razorpay=success"
+    RAZORPAY_CANCEL_URL: str = "http://localhost:5173/wallet?razorpay=cancel"
+    
     # Referral settings
     REFERRAL_CREDIT_AMOUNT: int = 1
     REQUIRE_EMAIL_VERIFICATION: bool = True

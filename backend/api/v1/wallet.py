@@ -8,6 +8,9 @@ from services.wallet_service import (
     handle_payment_webhook,
     create_paypal_order,
     capture_paypal_order,
+    create_razorpay_order,
+    verify_razorpay_payment,
+    handle_razorpay_webhook,
 )
 from utils.responses import no_store_json
 
@@ -38,3 +41,18 @@ async def wallet_paypal_create(bundle: str, current_user: User = Depends(get_cur
 @router.post("/wallet/payment/paypal/capture")
 async def wallet_paypal_capture(order_id: str):
     return no_store_json(await capture_paypal_order(order_id))
+
+@router.post("/wallet/payment/razorpay/create")
+async def wallet_razorpay_create(bundle: str, current_user: User = Depends(get_current_user)):
+    return no_store_json(await create_razorpay_order(current_user, bundle))
+
+@router.post("/wallet/payment/razorpay/verify")
+async def wallet_razorpay_verify(order_id: str, payment_id: str, signature: str):
+    return no_store_json(await verify_razorpay_payment(order_id, payment_id, signature))
+
+@router.post("/wallet/payment/razorpay/webhook")
+async def wallet_razorpay_webhook(request: Request, x_razorpay_signature: str = Header(default=None)):
+    raw = await request.body()
+    headers_map = {"x-razorpay-signature": x_razorpay_signature or ""}
+    result = await handle_razorpay_webhook(raw, headers_map)
+    return no_store_json(result)
