@@ -560,7 +560,7 @@ export async function createService(serviceData: {
   accounts: Array<{
     id: string;
     password: string;
-    end_date: string;
+    end_date?: string;
     is_active: boolean;
   }>;
 }) {
@@ -576,7 +576,7 @@ export async function updateService(serviceName: string, serviceData: {
   accounts: Array<{
     id: string;
     password: string;
-    end_date: string;
+    end_date?: string;
     is_active: boolean;
   }>;
 }) {

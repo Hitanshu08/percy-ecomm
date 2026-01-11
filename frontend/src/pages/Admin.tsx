@@ -24,7 +24,7 @@ import Spinner from '../components/feedback/Spinner';
 interface ServiceAccount {
   id: string;
   password: string;
-  end_date: string;
+  end_date?: string;
   is_active: boolean;
   credits: Record<string, number>;
 }
@@ -313,12 +313,6 @@ export default function Admin() {
         ...newService,
         credits: buildCreditsWithDefaults((newService as any).credits),
       } as any;
-      // Validate required fields not enforced by HTML form
-      const hasMissingEndDate = (payload.accounts || []).some((a: any) => !String(a.end_date || '').trim());
-      if (hasMissingEndDate) {
-        alert('Please provide End Date for all accounts');
-        return;
-      }
       await createService(payload);
       alert('Service created successfully!');
       setNewService({
@@ -340,12 +334,6 @@ export default function Admin() {
           ...newService,
           credits: buildCreditsWithDefaults((newService as any).credits),
         } as any;
-        // Validate required fields not enforced by HTML form
-        const hasMissingEndDate = (payload.accounts || []).some((a: any) => !String(a.end_date || '').trim());
-        if (hasMissingEndDate) {
-          alert('Please provide End Date for all accounts');
-          return;
-        }
         await updateService(serviceName, payload);
         alert('Service updated successfully!');
         setEditingService(null);
