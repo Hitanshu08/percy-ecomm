@@ -54,7 +54,7 @@ export default function Input({
         <input
           id={inputId}
           type={inputType}
-          className={`block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:text-white ${
+          className={`glass-input block w-full rounded-md px-3 py-2 text-gray-900 dark:text-slate-100 shadow-sm ${
             shouldShowToggle ? 'pr-10' : ''
           } ${className}`}
           {...props}

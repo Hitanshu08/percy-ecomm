@@ -99,7 +99,8 @@ class ConfigManager {
 
   getAdminNavigationItems() {
     return [
-      { path: '/admin', label: 'Admin', icon: 'admin' }
+      { path: '/admin', label: 'Admin', icon: 'admin' },
+      { path: '/admin/analytics', label: 'Analytics', icon: 'chart' }
     ];
   }
 

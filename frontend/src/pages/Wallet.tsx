@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
 import { getWallet, createWalletPayment, createPaypalOrder, capturePaypalOrder, createRazorpayOrder, verifyRazorpayPayment, verifyRazorpayPaymentLink } from '../lib/apiClient';
 import { config } from '../config/index';
 import { Button } from '../components/ui';
@@ -20,7 +19,6 @@ interface WalletData {
 
 export default function Wallet() {
   const { user } = useAuth();
-  const { theme } = useTheme();
   const [walletData, setWalletData] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState<string | null>(null);
@@ -282,7 +280,7 @@ export default function Wallet() {
   }
 
   return (
-    <div className="flex-1 bg-gray-50 dark:bg-gray-900 py-8">
+    <div className="flex-1 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={modalTitle}>
           <p className="text-gray-700 dark:text-gray-200">{modalMessage}</p>
@@ -300,7 +298,7 @@ export default function Wallet() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Current Credits */}
           <div className="lg:col-span-1">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+            <div className="glass-panel rounded-2xl border border-white/40 dark:border-slate-500/30 p-6">
               <div className="text-center">
                 <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -320,7 +318,7 @@ export default function Wallet() {
             </div>
 
             {/* Contact Support */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mt-6">
+            <div className="glass-panel rounded-2xl border border-white/40 dark:border-slate-500/30 p-6 mt-6">
               <div className="text-center">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                   Need to Add Credits?
@@ -344,7 +342,7 @@ export default function Wallet() {
 
           {/* Conversion Rate */}
           <div className="lg:col-span-2">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+            <div className="glass-panel rounded-2xl border border-white/40 dark:border-slate-500/30 p-6">
               <div className="mb-6">
                 {/* <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
                   Conversion Rate
@@ -361,7 +359,7 @@ export default function Wallet() {
                   className={`px-3 py-2 rounded border transition ${
                     provider === 'paypal'
                       ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+                      : 'glass-btn-secondary text-gray-700 dark:text-gray-300 border-white/40 dark:border-slate-500/30 hover:bg-white/70 dark:hover:bg-slate-800/60'
                   }`}
                 >
                   PayPal (Other than India)
@@ -371,7 +369,7 @@ export default function Wallet() {
                   className={`px-3 py-2 rounded border transition ${
                     provider === 'razorpay'
                       ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+                      : 'glass-btn-secondary text-gray-700 dark:text-gray-300 border-white/40 dark:border-slate-500/30 hover:bg-white/70 dark:hover:bg-slate-800/60'
                   }`}
                 >
                   Razorpay (India)
@@ -379,7 +377,7 @@ export default function Wallet() {
               </div>
 
               {/* Simple Conversion Display */}
-              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6">
+              <div className="glass-panel-soft rounded-xl p-6 border border-blue-200/50 dark:border-blue-800/40">
                 <div className="text-center">
                   <div className="text-4xl font-bold text-blue-600 dark:text-blue-400 mb-2">
                     1 USD = {config.getUsdToCreditsRate()} Credits
@@ -401,7 +399,7 @@ export default function Wallet() {
                       key={bundle}
                       onClick={() => setSelectedBundle(bundle)}
                       disabled={creating !== null}
-                      className={`w-full border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-left hover:bg-blue-50 dark:hover:bg-blue-900/20 transition disabled:opacity-60 ${selectedBundle===bundle ? 'ring-2 ring-blue-500' : ''}`}
+                      className={`w-full border rounded-lg p-4 text-left glass-panel-soft border-blue-200/55 dark:border-blue-800/40 hover:bg-white/70 dark:hover:bg-slate-800/50 transition disabled:opacity-60 ${selectedBundle===bundle ? 'ring-2 ring-blue-500' : ''}`}
                     >
                       <div className="text-lg font-semibold text-blue-700 dark:text-blue-300">{label}</div>
                       <div className="text-sm text-gray-600 dark:text-gray-400">{sub}</div>
@@ -426,7 +424,7 @@ export default function Wallet() {
               </div>
 
               {/* Note */}
-              <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+              <div className="mt-6 p-4 glass-panel-soft border border-blue-200/50 dark:border-blue-800/40 rounded-md">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
                   <strong>Note:</strong> 1 USD = 1 credit. $20 gives 21 credits. $50 gives 52 credits.
                 </p>

@@ -5,7 +5,7 @@ export default function TermsAndConditions() {
   const { theme } = useTheme();
 
   return (
-    <div className={`flex-1 ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
+    <div className={`flex-1 py-8 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -29,7 +29,7 @@ export default function TermsAndConditions() {
         </div>
 
         {/* Content */}
-        <div className={`prose prose-lg max-w-none ${theme === 'dark' ? 'prose-invert' : ''}`}>
+        <div className={`prose prose-lg max-w-none glass-panel rounded-2xl border border-white/40 dark:border-slate-500/30 p-6 ${theme === 'dark' ? 'prose-invert' : ''}`}>
           <div className={`space-y-6 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
             
             <section>

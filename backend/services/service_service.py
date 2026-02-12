@@ -20,6 +20,7 @@ import time
 from utils.timing import timeit
 from sqlalchemy.exc import IntegrityError, DBAPIError
 from utils.db import safe_commit
+from services.analytics_service import record_analytics_event
 
 _services_cache = {"data": None, "ts": 0.0}
 _user_services_cache: dict[str, dict] = {}
@@ -333,6 +334,23 @@ async def purchase_subscription(request: SubscriptionPurchase, current_user: Use
             # Get updated credits
             updated_user = await mdb.users.find_one({"username": current_user.username})
             updated_credits = int(updated_user.get("credits", 0)) if updated_user else (current_credits - cost_to_deduct)
+
+            await record_analytics_event(
+                "subscription_purchase",
+                actor_username=current_user.username,
+                actor_role=getattr(current_user, "role", "user"),
+                target_username=current_user.username,
+                source="shop",
+                details={
+                    "service_name": request.service_name,
+                    "duration": request.duration,
+                    "cost": int(cost_to_deduct),
+                    "extension": bool(is_extension),
+                    "new_end_date": new_end_str,
+                    "remaining_credits": int(updated_credits),
+                },
+                external_ref=f"mongo:{current_user.username}:{request.service_name}:{new_end_str}:{request.duration}",
+            )
             
             return {
                 "message": f"{'Extended' if is_extension else 'Purchased'} {duration_config.get('name', request.duration)} for {request.service_name}",
@@ -445,6 +463,22 @@ async def purchase_subscription(request: SubscriptionPurchase, current_user: Use
                 await check_and_award_referral_credit(user.id, us.id, _db)
             
             updated_credits = user.credits or 0
+            await record_analytics_event(
+                "subscription_purchase",
+                actor_username=current_user.username,
+                actor_role=getattr(current_user, "role", "user"),
+                target_username=current_user.username,
+                source="shop",
+                details={
+                    "service_name": request.service_name,
+                    "duration": request.duration,
+                    "cost": int(cost_to_deduct),
+                    "extension": bool(is_extension),
+                    "new_end_date": format_date(new_end_date),
+                    "remaining_credits": int(updated_credits),
+                },
+                external_ref=f"sql:{current_user.username}:{request.service_name}:{format_date(new_end_date)}:{request.duration}",
+            )
             return {
                 "message": f"{'Extended' if is_extension else 'Purchased'} {duration_config.get('name', request.duration)} for {request.service_name}",
                 "extension": is_extension,

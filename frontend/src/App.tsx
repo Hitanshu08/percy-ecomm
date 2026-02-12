@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { useAuth } from "./contexts/AuthContext";
-import { useTheme } from "./contexts/ThemeContext";
 import AuthPage from "./components/AuthPage";
 import { config } from "./config/index";
 import Header from "./components/Header";
@@ -15,6 +14,7 @@ import Shop from "./pages/Shop";
 import ContactUs from "./pages/ContactUs";
 import Subscriptions from "./pages/Subscriptions";
 import Admin from "./pages/Admin";
+import AdminAnalytics from "./pages/AdminAnalytics";
 import AccessDenied from "./pages/AccessDenied";
 import NotFound from "./pages/NotFound";
 import TermsAndConditions from "./components/TermsAndConditions";
@@ -35,12 +35,10 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 
 // Main App Layout
 function AppLayout() {
-  const { theme } = useTheme();
-  
   return (
-    <div className={`min-h-screen flex flex-col ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
+    <div className="min-h-screen flex flex-col glass-ambient text-gray-900 dark:text-slate-100">
       <Header />
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 overflow-auto w-full">
+      <main className="relative flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         <Routes>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<UserPage />} />
@@ -51,6 +49,7 @@ function AppLayout() {
           <Route path="/giveaway" element={<Giveaway />} />
           <Route path="/terms" element={<TermsAndConditions />} />
           <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+          <Route path="/admin/analytics" element={<AdminRoute><AdminAnalytics /></AdminRoute>} />
           <Route path="/access-denied" element={<AccessDenied />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

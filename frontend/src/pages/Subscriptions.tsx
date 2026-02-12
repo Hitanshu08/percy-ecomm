@@ -173,7 +173,7 @@ export default function Subscriptions() {
   }
 
   return (
-    <div className={`flex-1 p-4 ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
+    <div className={`flex-1 p-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">My Subscriptions</h1>
@@ -189,7 +189,7 @@ export default function Subscriptions() {
         )}
 
         {subscriptions.length === 0 ? (
-          <div className={`text-center py-12 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+          <div className="text-center py-12 glass-panel rounded-2xl shadow-lg border border-white/40 dark:border-slate-500/30">
             <div className="text-6xl mb-4">📱</div>
             <h2 className="text-2xl font-bold mb-2">No Subscriptions Found</h2>
             <p className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>

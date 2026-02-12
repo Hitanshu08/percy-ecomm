@@ -14,6 +14,7 @@ import hashlib
 import base64
 from typing import Dict, Any
 from forex_python.converter import CurrencyRates
+from services.analytics_service import record_analytics_event
 
 logger = logging.getLogger(__name__)
 c = CurrencyRates()
@@ -155,6 +156,22 @@ async def handle_payment_webhook(raw_body: bytes, headers_map: Dict[str, str]):
             res = await mdb.users.update_one({"username": username}, {"$inc": {"credits": int(credits)}})
             if res.matched_count == 0:
                 raise HTTPException(status_code=404, detail="User not found")
+            external_ref = payload.get("payment_id") or payload.get("invoice_id") or order_id
+            await record_analytics_event(
+                "wallet_add_credit",
+                actor_username=username,
+                actor_role="user",
+                target_username=username,
+                source="wallet",
+                external_ref=f"nowpayments:{external_ref}",
+                details={
+                    "provider": "nowpayments",
+                    "order_id": order_id,
+                    "bundle": bundle,
+                    "credits_added": int(credits),
+                    "payment_status": str(payment_status),
+                },
+            )
             return {"ok": True}
         else:
             async with get_or_use_session(None) as _db:
@@ -164,6 +181,22 @@ async def handle_payment_webhook(raw_body: bytes, headers_map: Dict[str, str]):
                     raise HTTPException(status_code=404, detail="User not found")
                 user.credits = (user.credits or 0) + int(credits)
                 await _db.commit()
+                external_ref = payload.get("payment_id") or payload.get("invoice_id") or order_id
+                await record_analytics_event(
+                    "wallet_add_credit",
+                    actor_username=username,
+                    actor_role="user",
+                    target_username=username,
+                    source="wallet",
+                    external_ref=f"nowpayments:{external_ref}",
+                    details={
+                        "provider": "nowpayments",
+                        "order_id": order_id,
+                        "bundle": bundle,
+                        "credits_added": int(credits),
+                        "payment_status": str(payment_status),
+                    },
+                )
                 return {"ok": True}
     except HTTPException:
         raise
@@ -320,6 +353,21 @@ async def capture_paypal_order(order_id: str) -> Dict[str, Any]:
                     await _db.commit()
             
             logger.info(f"PayPal: Credited {credits} credits to user {username}, new balance: {new_balance}")
+            await record_analytics_event(
+                "wallet_add_credit",
+                actor_username=username,
+                actor_role="user",
+                target_username=username,
+                source="wallet",
+                external_ref=f"paypal:{order_id}",
+                details={
+                    "provider": "paypal",
+                    "order_id": order_id,
+                    "bundle": bundle,
+                    "credits_added": int(credits),
+                    "new_balance": int(new_balance),
+                },
+            )
             return {
                 "status": "success",
                 "order_id": order_id,
@@ -630,6 +678,22 @@ async def verify_razorpay_payment_link(payment_link_id: str, payment_id: str) ->
                         await _db.commit()
                 
                 logger.info(f"Razorpay Payment Link: Credited {credits} credits to user {username}, new balance: {new_balance}")
+                await record_analytics_event(
+                    "wallet_add_credit",
+                    actor_username=username,
+                    actor_role="user",
+                    target_username=username,
+                    source="wallet",
+                    external_ref=f"razorpay:{payment_id}",
+                    details={
+                        "provider": "razorpay",
+                        "payment_link_id": payment_link_id,
+                        "payment_id": payment_id,
+                        "bundle": bundle,
+                        "credits_added": int(credits),
+                        "new_balance": int(new_balance),
+                    },
+                )
                 return {
                     "status": "success",
                     "payment_link_id": payment_link_id,
@@ -727,6 +791,22 @@ async def verify_razorpay_payment(order_id: str, payment_id: str, signature: str
                             await _db.commit()
                     
                     logger.info(f"Razorpay: Credited {credits} credits to user {username}, new balance: {new_balance}")
+                    await record_analytics_event(
+                        "wallet_add_credit",
+                        actor_username=username,
+                        actor_role="user",
+                        target_username=username,
+                        source="wallet",
+                        external_ref=f"razorpay:{payment_id}",
+                        details={
+                            "provider": "razorpay",
+                            "order_id": order_id,
+                            "payment_id": payment_id,
+                            "bundle": bundle,
+                            "credits_added": int(credits),
+                            "new_balance": int(new_balance),
+                        },
+                    )
                     return {
                         "status": "success",
                         "order_id": order_id,
@@ -820,6 +900,21 @@ async def handle_razorpay_webhook(raw_body: bytes, headers_map: Dict[str, str]) 
                                             await _db.commit()
                                 
                                 logger.info(f"Razorpay Payment Link webhook: Credited {credits} credits to user {username}")
+                                await record_analytics_event(
+                                    "wallet_add_credit",
+                                    actor_username=username,
+                                    actor_role="user",
+                                    target_username=username,
+                                    source="wallet_webhook",
+                                    external_ref=f"razorpay:{payment_id}",
+                                    details={
+                                        "provider": "razorpay",
+                                        "payment_link_id": payment_link_id,
+                                        "payment_id": payment_id,
+                                        "bundle": bundle,
+                                        "credits_added": int(credits),
+                                    },
+                                )
         
         # Handle standard payment events
         if event == "payment.captured":
@@ -863,6 +958,21 @@ async def handle_razorpay_webhook(raw_body: bytes, headers_map: Dict[str, str]) 
                                             await _db.commit()
                                 
                                 logger.info(f"Razorpay webhook: Credited {credits} credits to user {username}")
+                                await record_analytics_event(
+                                    "wallet_add_credit",
+                                    actor_username=username,
+                                    actor_role="user",
+                                    target_username=username,
+                                    source="wallet_webhook",
+                                    external_ref=f"razorpay:{payment_id}",
+                                    details={
+                                        "provider": "razorpay",
+                                        "order_id": order_id,
+                                        "payment_id": payment_id,
+                                        "bundle": bundle,
+                                        "credits_added": int(credits),
+                                    },
+                                )
         
         return {"ok": True}
     except HTTPException:
@@ -912,6 +1022,18 @@ async def deposit_credits(current_user: User, deposit: CreditDeposit):
                 raise HTTPException(status_code=404, detail="User not found")
             doc = await mdb.users.find_one({"username": current_user.username}, {"credits": 1})
             new_credits = int((doc or {}).get("credits", 0))
+            await record_analytics_event(
+                "wallet_add_credit",
+                actor_username=current_user.username,
+                actor_role=getattr(current_user, "role", "user"),
+                target_username=current_user.username,
+                source="wallet",
+                details={
+                    "provider": "manual",
+                    "credits_added": int(deposit.amount),
+                    "new_balance": int(new_credits),
+                },
+            )
             return {
                 "message": f"Successfully deposited {deposit.amount} credits",
                 "new_balance": new_credits,
@@ -925,6 +1047,18 @@ async def deposit_credits(current_user: User, deposit: CreditDeposit):
             new_credits = (user.credits or 0) + deposit.amount
             user.credits = new_credits
             await _db.commit()
+            await record_analytics_event(
+                "wallet_add_credit",
+                actor_username=current_user.username,
+                actor_role=getattr(current_user, "role", "user"),
+                target_username=current_user.username,
+                source="wallet",
+                details={
+                    "provider": "manual",
+                    "credits_added": int(deposit.amount),
+                    "new_balance": int(new_credits),
+                },
+            )
             return {
                 "message": f"Successfully deposited {deposit.amount} credits",
                 "new_balance": new_credits,

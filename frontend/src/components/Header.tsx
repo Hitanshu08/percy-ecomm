@@ -78,7 +78,7 @@ export default function Header() {
 
   return (
     <>
-      <header className={`sticky top-0 z-50 ${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'} border-b shadow-sm`}>
+      <header className="sticky top-0 z-50 glass-panel-soft border-b border-white/40 dark:border-slate-500/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Hamburger Menu - Left */}
@@ -203,9 +203,7 @@ export default function Header() {
 
                 {/* Dropdown Menu */}
                 {isDropdownOpen && (
-                  <div className={`absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 z-50 ${
-                    theme === 'dark' ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'
-                  }`}>
+                  <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 z-50 glass-panel border border-white/40 dark:border-slate-500/30">
                     {/* User Info */}
                     <div className={`px-4 py-2 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
                       <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
@@ -259,7 +257,11 @@ export default function Header() {
           {/* Sidebar */}
           <div className={`fixed left-0 top-0 h-full w-64 transform transition-transform duration-300 ease-in-out ${
             isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          } ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'} shadow-xl`}>
+          } ${
+            theme === 'dark'
+              ? 'glass-panel border-r border-white/40 dark:border-slate-500/30 shadow-xl'
+              : 'bg-white/95 backdrop-blur-xl border-r border-slate-200/80 shadow-[0_24px_48px_rgba(15,23,42,0.18)]'
+          }`}>
             
             {/* Sidebar Header */}
             <div className={`flex items-center justify-between p-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
@@ -330,10 +332,12 @@ export default function Header() {
                     onClick={() => setIsSidebarOpen(false)}
                     className={`flex items-center px-3 py-3 rounded-lg text-base font-medium transition-colors ${
                       isActive(item.path)
-                        ? 'bg-blue-100 text-blue-700'
+                        ? theme === 'dark'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-blue-500/15 text-blue-700 border border-blue-200/75'
                         : theme === 'dark'
                           ? 'text-gray-300 hover:text-white hover:bg-gray-700'
-                          : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+                          : 'text-gray-700 hover:text-gray-900 hover:bg-slate-100/80'
                     }`}
                   >
                     {item.label}

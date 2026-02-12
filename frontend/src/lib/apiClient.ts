@@ -628,6 +628,80 @@ export async function getAdminUsers(page: number = 1, size: number = 20, search?
   return apiCall(`${API_URL}/admin/users?${params.toString()}`);
 }
 
+export type AdminAnalyticsEvent = {
+  id: string | number;
+  event_type: string;
+  status: string;
+  actor_username: string;
+  actor_role: string;
+  target_username: string;
+  source: string;
+  external_ref: string;
+  details: Record<string, unknown>;
+  created_at: string;
+};
+
+export type AdminAnalyticsResponse = {
+  events: AdminAnalyticsEvent[];
+  page: number;
+  size: number;
+  total: number;
+  total_pages: number;
+  summary: {
+    by_type: Record<string, number>;
+  };
+};
+
+export type AdminAnalyticsFilters = {
+  page?: number;
+  size?: number;
+  event_type?: string;
+  status?: string;
+  user_query?: string;
+  actor_username?: string;
+  target_username?: string;
+  source?: string;
+  start_date?: string;
+  end_date?: string;
+};
+
+export async function getAdminAnalyticsEvents(filters: AdminAnalyticsFilters = {}): Promise<AdminAnalyticsResponse> {
+  const params = new URLSearchParams();
+  const merged = {
+    page: filters.page ?? 1,
+    size: filters.size ?? 20,
+    event_type: filters.event_type ?? '',
+    status: filters.status ?? 'success',
+    user_query: filters.user_query ?? '',
+    actor_username: filters.actor_username ?? '',
+    target_username: filters.target_username ?? '',
+    source: filters.source ?? '',
+    start_date: filters.start_date ?? '',
+    end_date: filters.end_date ?? '',
+  };
+  Object.entries(merged).forEach(([key, value]) => {
+    const str = String(value ?? '').trim();
+    if (str) {
+      params.append(key, str);
+    }
+  });
+  return apiCall(`${API_URL}/admin/analytics/events?${params.toString()}`);
+}
+
+export async function createAnalyticsEvent(payload: {
+  event_type: string;
+  status?: string;
+  target_username?: string;
+  source?: string;
+  external_ref?: string;
+  details?: Record<string, unknown>;
+}) {
+  return apiCall(`${API_URL}/analytics/events`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function purchaseSubscription(serviceName: string, duration: string) {
   return apiCall(`${API_URL}/purchase-subscription`, {
     method: 'POST',

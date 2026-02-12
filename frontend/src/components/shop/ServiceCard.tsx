@@ -51,7 +51,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
   const hasAvailableOptions = availableDurations.length > 0;
   const canPurchase = hasAvailableOptions && isAvailable;
   return (
-    <div className="border rounded-md overflow-hidden bg-white dark:bg-gray-800">
+    <div className="glass-panel rounded-2xl overflow-hidden border border-white/40 dark:border-slate-500/30">
       <img src={service.image} alt={service.name} className="h-40 w-full object-cover bg-[ghostwhite]" />
       <div className="p-4 space-y-3">
         <div className="text-lg font-medium text-gray-900 dark:text-white">{service.name}</div>
@@ -60,7 +60,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
         </p> */}
 
         {hasExistingSubscription && currentSubInfo && (
-          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+          <div className="p-3 glass-panel-soft rounded-md border border-blue-200/50 dark:border-blue-800/40">
             <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">Your Current Assignment:</p>
             <div className="text-xs text-blue-700 dark:text-blue-400 space-y-1">
               <div><strong>Expires:</strong> {currentSubInfo.end_date}</div>
@@ -75,7 +75,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
         )}
 
         {!hasExistingSubscription && isAvailable && (
-          <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-md">
+          <div className="p-3 glass-panel-soft rounded-md border border-green-200/50 dark:border-green-800/40">
             <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">Account Available:</p>
             <div className="text-xs text-green-700 dark:text-green-400">
               <div className="mt-2 text-green-600 dark:text-green-400">
@@ -86,7 +86,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
         )}
 
         {!isAvailable && (
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-md">
+          <div className="p-3 glass-panel-soft rounded-md border border-red-200/55 dark:border-red-800/40">
             <p className="text-sm font-medium text-red-800 dark:text-red-200">
               No accounts currently available for purchase
             </p>

@@ -14,6 +14,7 @@ from core.config import settings
 from db.mongodb import get_mongo_db
 from utils.db import safe_commit
 from services.referral_service import check_and_award_referral_credit
+from services.analytics_service import record_analytics_event
 
 logger = logging.getLogger(__name__)
 
@@ -392,6 +393,17 @@ async def add_credits_to_user(request: AdminAddCredits, current_user: User, db: 
             if res.matched_count == 0:
                 raise HTTPException(status_code=404, detail="User not found")
             doc = await mdb.users.find_one({"username": request.username}, {"credits": 1})
+            await record_analytics_event(
+                "admin_add_credit",
+                actor_username=getattr(current_user, "username", ""),
+                actor_role=getattr(current_user, "role", "admin"),
+                target_username=request.username,
+                source="admin",
+                details={
+                    "credits_added": int(request.credits),
+                    "new_balance": int((doc or {}).get("credits", 0)),
+                },
+            )
             return {"message": f"Added {request.credits} credits to {request.username}", "credits": int((doc or {}).get("credits", 0))}
         async with get_or_use_session(db) as db:
             user = (await db.execute(select(UserModel).where(UserModel.username == request.username))).scalars().first()
@@ -399,9 +411,22 @@ async def add_credits_to_user(request: AdminAddCredits, current_user: User, db: 
                 raise HTTPException(status_code=404, detail="User not found")
             if hasattr(request, 'service_id') and request.service_id:
                 raise HTTPException(status_code=400, detail="Per-subscription credits are not supported")
-                user.credits = (user.credits or 0) + request.credits
-                await db.commit()
-                return {"message": f"Added {request.credits} credits to {request.username}", "credits": user.credits}
+            user.credits = (user.credits or 0) + int(request.credits)
+            await db.commit()
+            await record_analytics_event(
+                "admin_add_credit",
+                actor_username=getattr(current_user, "username", ""),
+                actor_role=getattr(current_user, "role", "admin"),
+                target_username=request.username,
+                source="admin",
+                details={
+                    "credits_added": int(request.credits),
+                    "new_balance": int(user.credits or 0),
+                },
+            )
+            return {"message": f"Added {request.credits} credits to {request.username}", "credits": int(user.credits or 0)}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error adding credits: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")

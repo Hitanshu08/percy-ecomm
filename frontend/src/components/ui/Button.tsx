@@ -8,9 +8,9 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 const base = "inline-flex items-center justify-center rounded-md font-medium focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed transition";
 
 const variants: Record<NonNullable<ButtonProps["variant"]>, string> = {
-  primary: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-400",
-  secondary: "bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-300",
-  ghost: "bg-transparent hover:bg-gray-100 text-gray-900 focus:ring-gray-200",
+  primary: "relative overflow-hidden border border-blue-300/45 dark:border-blue-400/30 bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.35)] hover:brightness-105 hover:shadow-[0_12px_28px_rgba(37,99,235,0.45)] active:translate-y-px focus:ring-blue-300",
+  secondary: "glass-btn-secondary text-gray-900 dark:text-slate-100 hover:bg-white/70 dark:hover:bg-slate-800/60 focus:ring-blue-300",
+  ghost: "bg-transparent text-gray-900 dark:text-slate-100 hover:bg-white/55 dark:hover:bg-slate-800/40 focus:ring-blue-200",
 };
 
 const sizes: Record<NonNullable<ButtonProps["size"]>, string> = {

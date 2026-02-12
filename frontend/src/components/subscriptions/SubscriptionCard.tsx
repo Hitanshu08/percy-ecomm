@@ -46,11 +46,7 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
     try { await navigator.clipboard.writeText(text); } catch {}
   };
   return (
-    <div
-      className={`rounded-lg shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl ${
-        theme === 'dark' ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'
-      }`}
-    >
+    <div className="glass-panel rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl border border-white/40 dark:border-slate-500/30">
       {/* Service Image */}
       <div className="relative h-48 overflow-hidden">
         {subscription.service_image && subscription.service_image.trim().startsWith('<svg') ? (
@@ -74,8 +70,8 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
 
       {/* Service Info */}
       <div className="p-4">
-        <h3 className="text-xl font-bold mb-2">{subscription.service_name}</h3>
-        <p className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'} text-sm mb-4`}>
+        <h3 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">{subscription.service_name}</h3>
+        <p className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} text-sm mb-4`}>
           Expires: {formatDate(subscription.end_date)}
         </p>
 
@@ -97,9 +93,9 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
             {showCredentials && (
               <div className="space-y-4">
                 {subscription.accounts.map((acc, idx) => (
-                  <div key={`${acc.subscription_id ?? idx}`} className={`p-3 rounded ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <div key={`${acc.subscription_id ?? idx}`} className="p-3 rounded-lg glass-panel-soft border border-white/40 dark:border-slate-500/30">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Account {idx + 1}</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Account {idx + 1}</span>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(acc.is_active, acc.end_date)}`}>
                         {getStatusText(acc.is_active, acc.end_date)}
                       </span>
@@ -112,9 +108,7 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
                             type="text"
                             value={acc.account_id}
                             readOnly
-                            className={`basis-0 min-w-0 grow px-3 py-2 rounded border truncate select-all ${
-                              theme === 'dark' ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300 bg-gray-50 text-gray-900'
-                            }`}
+                            className="basis-0 min-w-0 grow px-3 py-2 rounded glass-input truncate select-all"
                             aria-label="Account ID"
                           />
                           <Button onClick={() => copyToClipboard(acc.account_id)} variant="primary" size="sm" title="Copy Account ID">
@@ -132,9 +126,7 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
                               type={visiblePasswords[idx] ? 'text' : 'password'}
                               value={acc.account_password || ''}
                               readOnly
-                              className={`w-full min-w-0 px-3 py-2 pr-10 rounded border truncate ${
-                                theme === 'dark' ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300 bg-gray-50 text-gray-900'
-                              }`}
+                              className="w-full min-w-0 px-3 py-2 pr-10 rounded glass-input truncate"
                             />
                             <button
                               onClick={() => togglePassword(idx)}

@@ -55,8 +55,8 @@ export default function EmailVerification() {
   };
 
   return (
-    <div className={`min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      <div className={`w-full max-w-md p-8 rounded-lg shadow-lg ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+    <div className="min-h-screen glass-ambient flex items-center justify-center px-4">
+      <div className="w-full max-w-md p-8 rounded-2xl shadow-lg glass-panel border border-white/40 dark:border-slate-500/30">
         <div className="text-center">
           {status === 'loading' && (
             <>

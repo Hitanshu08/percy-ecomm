@@ -42,7 +42,7 @@ const AdminServiceCard: React.FC<AdminServiceCardProps> = ({
   onCancelCredits,
 }) => {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700">
+    <div className="glass-panel rounded-2xl p-4 border border-white/40 dark:border-slate-500/30">
       <div className="flex items-center space-x-4 mb-4">
         <img src={service.image} alt={service.name} className="w-24 h-16 rounded-lg object-cover bg-[ghostwhite]" />
         <div>
@@ -80,7 +80,7 @@ const AdminServiceCard: React.FC<AdminServiceCardProps> = ({
         </Button>
       </div>
       {editingCreditsOpen && (
-        <div className="mt-4 p-3 border border-gray-200 dark:border-gray-700 rounded-md">
+        <div className="mt-4 p-3 glass-panel-soft border border-white/40 dark:border-slate-500/30 rounded-md">
           <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Edit Credits</h4>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {Object.entries(durations).map(([key, d]) => (
@@ -91,7 +91,7 @@ const AdminServiceCard: React.FC<AdminServiceCardProps> = ({
                   min={1}
                   value={creditsForm[key] ?? (defaultDurationCredits[key] ?? d.credits_cost)}
                   onChange={(e) => onChangeCredit(key, Number(e.target.value))}
-                  className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-xs"
+                  className="flex-1 px-2 py-1 glass-input rounded-md text-xs"
                 />
               </div>
             ))}

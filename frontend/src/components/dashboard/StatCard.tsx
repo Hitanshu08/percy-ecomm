@@ -10,7 +10,7 @@ interface StatCardProps {
 
 const StatCard: React.FC<StatCardProps> = ({ title, value, icon, iconBgClass, className }) => {
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700 ${className || ''}`}>
+    <div className={`glass-panel-soft rounded-2xl p-4 border border-white/40 dark:border-slate-500/30 ${className || ''}`}>
       <div className="flex items-center">
         <div className="flex-shrink-0">
           <div className={`w-8 h-8 ${iconBgClass || 'bg-gray-100 dark:bg-gray-700'} rounded-lg flex items-center justify-center`}>

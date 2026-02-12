@@ -31,8 +31,8 @@ const RecentSubscriptions: React.FC<RecentSubscriptionsProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+    <div className="glass-panel rounded-2xl border border-white/40 dark:border-slate-500/30">
+      <div className="px-6 py-4 border-b border-white/35 dark:border-slate-500/30 flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
           {title}
         </h2>
@@ -63,7 +63,7 @@ const RecentSubscriptions: React.FC<RecentSubscriptionsProps> = ({
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {items.map((subscription, index) => (
-              <div key={index} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+              <div key={index} className="glass-panel-soft rounded-xl p-4 border border-white/40 dark:border-slate-500/30">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                   <div className="flex-shrink-0 w-full sm:w-auto">
                     {subscription.service_image && subscription.service_image.trim().startsWith('<svg') ? (

@@ -102,7 +102,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin }: ForgotPasswordFo
   if (step === 'verify') {
     return (
       <div className={`w-full max-w-md mx-auto ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>
-        <div className={`p-8 rounded-lg shadow-lg ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} text-center`}>
+        <div className="p-8 rounded-2xl glass-panel border border-white/40 dark:border-slate-500/30 shadow-lg text-center">
           <div className="mb-6">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -146,11 +146,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin }: ForgotPasswordFo
                 type="text"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\s+/g, ''))}
-                className={`w-full px-4 py-3 rounded-lg border transition-colors ${
-                  theme === 'dark' 
-                    ? 'border-gray-600 focus:border-blue-500 bg-gray-700' 
-                    : 'border-gray-300 focus:border-blue-500 bg-white'
-                } ${theme === 'dark' ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'}`}
+                className={`w-full px-4 py-3 rounded-lg glass-input transition-colors ${theme === 'dark' ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'}`}
                 placeholder="Enter 6-digit OTP"
                 maxLength={6}
               />
@@ -181,7 +177,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin }: ForgotPasswordFo
                     }
                   }
                 }}
-                className={`px-3 py-2 rounded-md text-sm ${cooldown > 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-gray-700 text-white hover:bg-gray-800'}`}
+                className={`px-3 py-2 rounded-md text-sm ${cooldown > 0 ? 'bg-gray-400 cursor-not-allowed' : 'glass-btn-secondary text-gray-900 dark:text-white hover:bg-white/70 dark:hover:bg-slate-800/60'}`}
               >
                 {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend OTP'}
               </button>
@@ -202,7 +198,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin }: ForgotPasswordFo
   if (step === 'reset') {
     return (
       <div className={`w-full max-w-md mx-auto ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>
-        <div className={`p-8 rounded-lg shadow-lg ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+        <div className="p-8 rounded-2xl glass-panel border border-white/40 dark:border-slate-500/30 shadow-lg">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold mb-2">Reset Password</h2>
             <p className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -238,11 +234,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin }: ForgotPasswordFo
                 type="password"
                 value={newPass}
                 onChange={(e) => setNewPass(e.target.value)}
-                className={`w-full px-4 py-3 rounded-lg border transition-colors ${
-                  theme === 'dark' 
-                    ? 'border-gray-600 focus:border-blue-500 bg-gray-700' 
-                    : 'border-gray-300 focus:border-blue-500 bg-white'
-                } ${theme === 'dark' ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'}`}
+                className={`w-full px-4 py-3 rounded-lg glass-input transition-colors ${theme === 'dark' ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'}`}
                 placeholder="Enter new password"
                 required
               />
@@ -253,11 +245,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin }: ForgotPasswordFo
                 type="password"
                 value={confirmPass}
                 onChange={(e) => setConfirmPass(e.target.value)}
-                className={`w-full px-4 py-3 rounded-lg border transition-colors ${
-                  theme === 'dark' 
-                    ? 'border-gray-600 focus:border-blue-500 bg-gray-700' 
-                    : 'border-gray-300 focus:border-blue-500 bg-white'
-                } ${theme === 'dark' ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'}`}
+                className={`w-full px-4 py-3 rounded-lg glass-input transition-colors ${theme === 'dark' ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'}`}
                 placeholder="Confirm new password"
                 required
               />
@@ -277,7 +265,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin }: ForgotPasswordFo
 
   return (
     <div className={`w-full max-w-md mx-auto ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>
-      <div className={`p-8 rounded-lg shadow-lg ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+      <div className="p-8 rounded-2xl glass-panel border border-white/40 dark:border-slate-500/30 shadow-lg">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold mb-2">Reset Password</h2>
           <p className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -298,9 +286,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin }: ForgotPasswordFo
               className={`w-full px-4 py-3 rounded-lg border transition-colors ${
                 error
                   ? 'border-red-500 focus:border-red-500' 
-                  : theme === 'dark' 
-                    ? 'border-gray-600 focus:border-blue-500 bg-gray-700' 
-                    : 'border-gray-300 focus:border-blue-500 bg-white'
+                  : 'glass-input'
               } ${theme === 'dark' ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'}`}
               placeholder="Enter your email"
             />

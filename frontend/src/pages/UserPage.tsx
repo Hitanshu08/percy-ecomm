@@ -146,7 +146,7 @@ export default function UserPage() {
   }
 
   return (
-    <div className="flex-1 bg-gray-50 dark:bg-gray-900 py-8">
+    <div className="flex-1 py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
@@ -240,16 +240,16 @@ export default function UserPage() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Your Referral Code
                   </label>
-                  <div className="flex gap-2">
-                    <div className="flex-1 bg-gray-100 dark:bg-gray-800 px-4 py-3 rounded-lg border-2 border-gray-300 dark:border-gray-600">
-                      <code className="text-2xl font-bold text-gray-900 dark:text-white tracking-wider">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="flex-1 min-w-0 glass-panel-soft px-4 py-3 rounded-lg border border-white/40 dark:border-slate-500/30">
+                      <code className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white tracking-wider break-all">
                         {referralStats.referral_code}
                       </code>
                     </div>
                     <Button
                       onClick={copyReferralCode}
                       variant={copied ? "secondary" : "primary"}
-                      className="px-6"
+                      className="w-full sm:w-auto px-4 sm:px-6 justify-center"
                     >
                       {copied ? (
                         <>
@@ -278,16 +278,16 @@ export default function UserPage() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Referral Link
                   </label>
-                  <div className="flex gap-2">
-                    <div className="flex-1 bg-gray-100 dark:bg-gray-800 px-4 py-3 rounded-lg border-2 border-gray-300 dark:border-gray-600 truncate">
-                      <code className="text-sm text-gray-900 dark:text-white">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="flex-1 min-w-0 glass-panel-soft px-4 py-3 rounded-lg border border-white/40 dark:border-slate-500/30">
+                      <code className="block text-xs sm:text-sm text-gray-900 dark:text-white break-all">
                         {window.location.origin}/auth?ref={referralStats.referral_code}
                       </code>
                     </div>
                     <Button
                       onClick={copyReferralLink}
                       variant="secondary"
-                      className="px-6"
+                      className="w-full sm:w-auto px-4 sm:px-6 justify-center"
                     >
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -298,8 +298,8 @@ export default function UserPage() {
                 </div>
 
                 {/* Statistics */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="glass-panel-soft p-4 rounded-lg border border-blue-200/55 dark:border-blue-800/40">
                     <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Users Referred</div>
                     <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                       {(referralStats.referrals_count || 0).toLocaleString()}
@@ -308,7 +308,7 @@ export default function UserPage() {
                       Total signups
                     </div>
                   </div>
-                  <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+                  <div className="glass-panel-soft p-4 rounded-lg border border-green-200/55 dark:border-green-800/40">
                     <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Credits Earned</div>
                     <div className="text-3xl font-bold text-green-600 dark:text-green-400">
                       {(referralStats.total_credits_earned || 0).toLocaleString()}
@@ -317,7 +317,7 @@ export default function UserPage() {
                       From referrals
                     </div>
                   </div>
-                  <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
+                  <div className="glass-panel-soft p-4 rounded-lg border border-purple-200/55 dark:border-purple-800/40">
                     <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Avg. per Referral</div>
                     <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
                       {referralStats.referrals_count > 0 
@@ -331,7 +331,7 @@ export default function UserPage() {
                 </div>
 
                 {/* Info Box */}
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <div className="glass-panel-soft border border-blue-200/55 dark:border-blue-800/40 rounded-lg p-4">
                   <div className="flex">
                     <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -361,7 +361,7 @@ export default function UserPage() {
               />
 
               {/* Modal panel */}
-              <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="inline-block align-bottom glass-panel border border-white/40 dark:border-slate-500/30 rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                   <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                     Change Password

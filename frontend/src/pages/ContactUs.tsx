@@ -1,9 +1,7 @@
 import React from "react";
-import { useTheme } from "../contexts/ThemeContext";
 import { Button } from "../components/ui";
 
 export default function ContactUs() {
-  const { theme } = useTheme();
   const telegram = "https://t.me/PremiumShop01";
   const mail = "namemine153+contactus@gmail.com";
   const subject = encodeURIComponent("Contact Us Inquiry");
@@ -19,7 +17,7 @@ export default function ContactUs() {
   };
 
   return (
-    <div className="flex-1 bg-gray-50 dark:bg-gray-900 py-8">
+    <div className="flex-1 py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-12">
@@ -33,7 +31,7 @@ export default function ContactUs() {
 
         <div className="grid grid-cols-1 lg:grid-cols-1 gap-8">
           {/* Telegram Channel */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 max-w-2xl mx-auto">
+          <div className="glass-panel rounded-2xl border border-white/40 dark:border-slate-500/30 p-8 max-w-2xl mx-auto">
             <div className="text-center mb-8">
               <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -67,7 +65,7 @@ export default function ContactUs() {
         </div>
 
         {/* Additional Information */}
-        <div className="mt-12 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
+        <div className="mt-12 glass-panel rounded-2xl border border-white/40 dark:border-slate-500/30 p-8">
           <div className="text-center">
             <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
               Why Contact Us?
@@ -114,7 +112,7 @@ export default function ContactUs() {
 
         {/* Response Time Info */}
         <div className="mt-8 text-center">
-          <div className="inline-flex items-center px-4 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-full">
+          <div className="inline-flex items-center px-4 py-2 glass-panel-soft border border-blue-200/55 dark:border-blue-800/40 rounded-full">
             <svg className="w-4 h-4 text-blue-600 dark:text-blue-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>

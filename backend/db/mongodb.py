@@ -85,6 +85,13 @@ async def init_mongo_indexes():
             except Exception as e:
                 # Collection might not exist yet, that's okay
                 logger.debug(f"Could not create referral_credits indexes (collection may not exist yet): {e}")
+            # Analytics events
+            await db.analytics_events.create_index("created_at", name="i_analytics_created_at")
+            await db.analytics_events.create_index([("event_type", 1), ("created_at", -1)], name="i_analytics_event_type_created_at")
+            await db.analytics_events.create_index([("actor_username", 1), ("created_at", -1)], name="i_analytics_actor_created_at")
+            await db.analytics_events.create_index([("target_username", 1), ("created_at", -1)], name="i_analytics_target_created_at")
+            await db.analytics_events.create_index([("status", 1), ("created_at", -1)], name="i_analytics_status_created_at")
+            await db.analytics_events.create_index("external_ref", name="i_analytics_external_ref")
             return
         except Exception as e:
             wait_s = min(2 ** attempt, 15)

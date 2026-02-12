@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from api.v1 import auth, users, services, wallet, admin
+from api.v1 import auth, users, services, wallet, admin, analytics
 from core.config import settings
 from db.base import initialize_database
 from db.mongodb import init_mongo_indexes
@@ -53,6 +53,7 @@ app.include_router(users.router, tags=["Users"])
 app.include_router(services.router, tags=["Services"])
 app.include_router(wallet.router, tags=["Wallet"])
 app.include_router(admin.router, tags=["Admin"])
+app.include_router(analytics.router, tags=["Analytics"])
 
 @app.on_event("startup")
 async def startup_db_client():

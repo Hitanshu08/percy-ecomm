@@ -56,7 +56,7 @@ const Dashboard: React.FC = () => {
 
   if (!dashboardData) {
     return (
-      <div className="flex-1 bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
             Error loading dashboard
@@ -70,7 +70,7 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="flex-1 bg-gray-50 dark:bg-gray-900 py-8">
+    <div className="flex-1 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
@@ -147,7 +147,7 @@ const Dashboard: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {dashboardData.recent_subscriptions.map((subscription, index) => (
-                <div key={subscription.service_name} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+                <div key={subscription.service_name} className="glass-panel-soft rounded-xl p-4 border border-white/40 dark:border-slate-500/30">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                     <div className="flex-shrink-0 w-full sm:w-auto">
                       {subscription.service_image && subscription.service_image.trim().startsWith('<svg') ? (

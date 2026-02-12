@@ -108,7 +108,7 @@ export default function LoginForm({ onSwitchToSignup, onSwitchToForgotPassword }
 
   return (
     <div className={`w-full max-w-md mx-auto ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>
-      <div className={`p-8 rounded-lg shadow-lg ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+      <div className="p-8 rounded-2xl glass-panel border border-white/40 dark:border-slate-500/30 shadow-lg">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold mb-2">Welcome Back</h2>
           <p className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>

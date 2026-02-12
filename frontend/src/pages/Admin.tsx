@@ -587,7 +587,7 @@ export default function Admin() {
   }
 
   return (
-    <div className="flex-1 bg-gray-50 dark:bg-gray-900 py-8">
+    <div className="flex-1 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
@@ -626,7 +626,7 @@ export default function Admin() {
         {activeTab === 'services' && (
           <div className="space-y-6">
             {/* Create/Edit Service Form */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700">
+            <div className="glass-panel rounded-2xl p-4">
               <h2 ref={editServiceFormRef} className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 {editingService ? `Edit Service: ${editingService}` : 'Create New Service'}
               </h2>
@@ -683,7 +683,7 @@ export default function Admin() {
                           ...prev,
                           credits: { ...(prev as any).credits, [key]: Number(e.target.value) }
                         }))}
-                        className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-xs"
+                        className="flex-1 px-2 py-1 glass-input rounded-md text-xs"
                       />
                     </div>
                   ))}
@@ -731,7 +731,7 @@ export default function Admin() {
                           required
                           value={account.id}
                           onChange={(e) => updateAccountField(index, 'id', e.target.value)}
-                          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                          className="px-3 py-2 glass-input rounded-md text-gray-900 dark:text-slate-100"
                         />
                       </div>
                       <div className="relative flex flex-col">
@@ -747,7 +747,7 @@ export default function Admin() {
                             required
                             value={account.password}
                             onChange={(e) => updateAccountField(index, 'password', e.target.value)}
-                            className="w-full pr-10 pl-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                            className="w-full pr-10 pl-3 py-2 glass-input rounded-md text-gray-900 dark:text-slate-100"
                           />
                           <button
                             type="button"
@@ -809,7 +809,7 @@ export default function Admin() {
             </div>
 
             {/* Services List */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+            <div className="glass-panel rounded-2xl">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Existing Services
@@ -823,14 +823,14 @@ export default function Admin() {
                     value={servicesSearch}
                     onChange={(e) => setServicesSearch(e.target.value)}
                     placeholder="Filter services by name or account id"
-                    className="w-full sm:max-w-xs px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-sm"
+                    className="w-full sm:max-w-xs px-3 py-2 glass-input rounded-md text-sm text-gray-900 dark:text-slate-100"
                   />
                   <div className="flex items-center gap-2">
                     <label className="text-sm text-gray-600 dark:text-gray-300">Page size</label>
                     <select
                       value={servicesPageSize}
                       onChange={(e) => { const v = Number(e.target.value); setServicesPageSize(v); setServicesPage(1); }}
-                      className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-sm"
+                      className="px-2 py-1 glass-input rounded-md text-sm text-gray-900 dark:text-slate-100"
                     >
                       {[5,10,20,50,100].map(n => (
                         <option key={n} value={n}>{n}</option>
@@ -840,7 +840,7 @@ export default function Admin() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {pagedServices.map((service) => (
-                    <div key={service.name} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700">
+                    <div key={service.name} className="glass-panel-soft rounded-2xl p-4 border border-white/40 dark:border-slate-500/30">
                       <div className="flex items-center space-x-4 mb-4">
                         <img
                           src={service.image}
@@ -904,7 +904,7 @@ export default function Admin() {
                                   min={1}
                                   value={creditsForm[key] ?? (defaultDurationCredits[key] ?? (d as any).credits_cost)}
                                   onChange={(e) => setCreditsForm(prev => ({ ...prev, [key]: Number(e.target.value) }))}
-                                  className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-xs"
+                                  className="flex-1 px-2 py-1 glass-input rounded-md text-xs"
                                 />
                               </div>
                             ))}
@@ -965,7 +965,7 @@ export default function Admin() {
         {activeTab === 'users' && (
           <div className="space-y-6">
             {/* Assign Subscription Form */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700">
+            <div className="glass-panel rounded-2xl p-4">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Assign Subscription
               </h2>
@@ -975,7 +975,7 @@ export default function Admin() {
                   <select
                     value={selectedUser}
                     onChange={(e) => setSelectedUser(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 glass-input rounded-md text-gray-900 dark:text-slate-100"
                   >
                     <option value="">Select User</option>
                     {(users || []).map((user) => (
@@ -996,7 +996,7 @@ export default function Admin() {
                         // setServiceCreditPreview(null);
                       }
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 glass-input rounded-md text-gray-900 dark:text-slate-100"
                   >
                     <option value="">Select Service</option>
                     {(services || []).map((service) => (
@@ -1017,7 +1017,7 @@ export default function Admin() {
                       //   setServiceCreditPreview(null);
                       // }
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 glass-input rounded-md text-gray-900 dark:text-slate-100"
                   >
                     <option value="">Select Duration</option>
                     <option value="1month">1 Month</option>
@@ -1044,7 +1044,7 @@ export default function Admin() {
               </div>
 
               {/* Users List */}
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+              <div className="glass-panel rounded-2xl">
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                     Users
@@ -1058,14 +1058,14 @@ export default function Admin() {
                       value={usersSearch}
                       onChange={(e) => setUsersSearch(e.target.value)}
                       placeholder="Filter users by username or email"
-                      className="w-full sm:max-w-xs px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-sm"
+                      className="w-full sm:max-w-xs px-3 py-2 glass-input rounded-md text-sm text-gray-900 dark:text-slate-100"
                     />
                     <div className="flex items-center gap-2">
                       <label className="text-sm text-gray-600 dark:text-gray-300">Page size</label>
                       <select
                         value={usersPageSize}
                         onChange={(e) => { const v = Number(e.target.value); setUsersPageSize(v); setUsersPage(1); }}
-                        className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-sm"
+                        className="px-2 py-1 glass-input rounded-md text-sm text-gray-900 dark:text-slate-100"
                       >
                         {[5,10,20,50,100].map(n => (
                           <option key={n} value={n}>{n}</option>
@@ -1075,7 +1075,7 @@ export default function Admin() {
                   </div>
                   <div className="space-y-4">
                     {pagedUsers.map((user) => (
-                      <div key={user.username} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+                      <div key={user.username} className="glass-panel-soft rounded-2xl p-4 border border-white/40 dark:border-slate-500/30">
                         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                           <div className="min-w-0">
                             <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white truncate">
@@ -1163,7 +1163,7 @@ export default function Admin() {
 
         {/* User Subscriptions Panel */}
         {userSubs && activeTab === 'users' && (
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 mt-6">
+                <div className="glass-panel rounded-2xl mt-6">
                   <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                       {userSubs.username}'s Subscriptions (Credits: {userSubs.credits})
@@ -1192,7 +1192,7 @@ export default function Admin() {
                                       type="date"
                                       value={endDateEdits[s.account_id] ?? formatDateForInput(s.end_date)}
                                       onChange={(e) => setEndDateEdits(prev => ({ ...prev, [s.account_id]: e.target.value }))}
-                                      className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-xs dark:[color-scheme:dark]"
+                                      className="px-2 py-1 glass-input rounded-md text-xs text-gray-900 dark:text-slate-100 dark:[color-scheme:dark]"
                                     />
                                     <button
                                       onClick={async () => {
@@ -1290,7 +1290,7 @@ export default function Admin() {
         {activeTab === 'credits' && (
           <div className="space-y-6">
             {/* Add Credits Form */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700">
+            <div className="glass-panel rounded-2xl p-4">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Manage Credits
               </h2>
@@ -1301,7 +1301,7 @@ export default function Admin() {
                     setCreditUser(e.target.value);
                     setSelectedSubscription(''); // Reset subscription selection when user changes
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 glass-input rounded-md text-gray-900 dark:text-slate-100"
                 >
                   <option value="">Select User</option>
                   {(users || []).map((user) => (
@@ -1316,7 +1316,7 @@ export default function Admin() {
                   placeholder="Credit Amount"
                   value={creditAmount}
                   onChange={(e) => setCreditAmount(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 glass-input rounded-md text-gray-900 dark:text-slate-100"
                 />
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
@@ -1338,7 +1338,7 @@ export default function Admin() {
             </div>
 
             {/* Credit System Info */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700">
+            <div className="glass-panel rounded-2xl p-4">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Credit System Information
               </h2>
