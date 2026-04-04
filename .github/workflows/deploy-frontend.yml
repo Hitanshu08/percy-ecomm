@@ -43,24 +43,12 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-      - name: Deploy dist to server
-        uses: appleboy/scp-action@v0.1.7
+      - name: Deploy to server via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          host: 153.92.11.8
+          server: 153.92.11.8
+          port: 21
           username: u959214930
           password: ${{ secrets.FRONTEND_SERVER_PASSWORD }}
-          port: 65002
-          source: frontend/dist/*
-          target: /home/u959214930/domains/valuesubs.com/public_html/
-          strip_components: 2
-
-      - name: Deploy assets to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: 153.92.11.8
-          username: u959214930
-          password: ${{ secrets.FRONTEND_SERVER_PASSWORD }}
-          port: 65002
-          source: frontend/dist/assets/*
-          target: /home/u959214930/domains/valuesubs.com/public_html/assets/
-          strip_components: 3
+          local-dir: frontend/dist/
+          server-dir: /domains/valuesubs.com/public_html/
