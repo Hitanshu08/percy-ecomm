@@ -43,12 +43,38 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-      - name: Deploy to server via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      - name: Deploy via backend server relay
+        uses: appleboy/ssh-action@v1
         with:
-          server: 153.92.11.8
-          port: 21
-          username: u959214930
-          password: ${{ secrets.FRONTEND_SERVER_PASSWORD }}
-          local-dir: frontend/dist/
-          server-dir: /domains/valuesubs.com/public_html/
+          host: 5.199.166.87
+          username: root
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script: |
+            apt-get install -y sshpass || true
+            cd /tmp
+            rm -rf _fe_deploy
+            mkdir -p _fe_deploy
+
+      - name: Upload dist to backend server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 5.199.166.87
+          username: root
+          password: ${{ secrets.SERVER_PASSWORD }}
+          source: frontend/dist/*
+          target: /tmp/_fe_deploy/
+          strip_components: 2
+
+      - name: Relay to frontend server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 5.199.166.87
+          username: root
+          password: ${{ secrets.SERVER_PASSWORD }}
+          command_timeout: 5m
+          script: |
+            sshpass -p '${{ secrets.FRONTEND_SERVER_PASSWORD }}' \
+              scp -P 65002 -o StrictHostKeyChecking=no -r \
+              /tmp/_fe_deploy/* \
+              u959214930@153.92.11.8:/home/u959214930/domains/valuesubs.com/public_html/
+            rm -rf /tmp/_fe_deploy
