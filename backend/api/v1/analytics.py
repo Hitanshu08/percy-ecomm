@@ -6,7 +6,11 @@ from core.config import settings
 from db.session import get_db_session
 from schemas.analytics_schema import AnalyticsEventCreate
 from schemas.user_schema import User
-from services.analytics_service import create_analytics_event, get_admin_analytics_events
+from services.analytics_service import (
+    create_analytics_event,
+    get_admin_analytics_events,
+    get_user_events,
+)
 from utils.responses import no_store_json
 from utils.timing import timeit
 
@@ -23,6 +27,28 @@ async def create_event(
     if settings.USE_MONGO:
         db = None
     return no_store_json(await create_analytics_event(payload, current_user, db))
+
+
+@timeit()
+@router.get("/me/events")
+async def list_my_events(
+    page: int = 1,
+    size: int = 20,
+    event_type: str = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    if settings.USE_MONGO:
+        db = None
+    return no_store_json(
+        await get_user_events(
+            username=current_user.username,
+            page=page,
+            size=size,
+            event_type=event_type,
+            db=db,
+        )
+    )
 
 
 @timeit()

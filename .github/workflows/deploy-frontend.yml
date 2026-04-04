@@ -1,0 +1,66 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Create .env file
+        working-directory: frontend
+        run: |
+          cat <<EOF > .env
+          VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}
+          VITE_ENVIRONMENT=${{ secrets.VITE_ENVIRONMENT }}
+          VITE_DEBUG=${{ secrets.VITE_DEBUG }}
+          VITE_TELEGRAM_URL=${{ secrets.VITE_TELEGRAM_URL }}
+          VITE_USD_TO_CREDITS_RATE=${{ secrets.VITE_USD_TO_CREDITS_RATE }}
+          EOF
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Deploy dist to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 153.92.11.8
+          username: u959214930
+          password: ${{ secrets.FRONTEND_SERVER_PASSWORD }}
+          port: 65002
+          source: frontend/dist/*
+          target: /home/u959214930/domains/valuesubs.com/public_html/
+          strip_components: 2
+
+      - name: Deploy assets to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 153.92.11.8
+          username: u959214930
+          password: ${{ secrets.FRONTEND_SERVER_PASSWORD }}
+          port: 65002
+          source: frontend/dist/assets/*
+          target: /home/u959214930/domains/valuesubs.com/public_html/assets/
+          strip_components: 3

@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApi } from '../lib/useApi';
 import { config } from '../config/index';
-import { Button, Select } from '../components/ui';
 import { Spinner } from '../components/feedback';
 import ServiceCard from '../components/shop/ServiceCard';
+import { trackPurchase, trackButtonClick } from '../lib/eventTracker';
 
 interface Service {
   name: string;
@@ -54,10 +54,14 @@ const Shop: React.FC = () => {
     return new Date(dateString);
   };
 
-  // Check if user has a subscription for a service
+  // Check if user has an active (non-expired) subscription for a service
   const hasSubscription = (serviceName: string) => {
     const svc = services.find(s => s.name === serviceName);
-    return Boolean(svc?.user_end_date);
+    if (!svc?.user_end_date) return false;
+    const endDate = parseDate(svc.user_end_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return endDate >= today;
   };
 
   // Get current subscription info for a service
@@ -103,6 +107,7 @@ const Shop: React.FC = () => {
     if (!user) return;
 
     setPurchasing(true);
+    trackButtonClick('purchase_subscription', { service: serviceName, duration: selectedDuration });
     try {
       const result = await callApi<{
         message: string;
@@ -116,6 +121,11 @@ const Shop: React.FC = () => {
           service_name: serviceName,
           duration: selectedDuration
         })
+      });
+
+      trackPurchase(serviceName, selectedDuration, result.cost, {
+        extension: result.extension,
+        remaining_credits: result.credits,
       });
 
       let messageText = result.message;

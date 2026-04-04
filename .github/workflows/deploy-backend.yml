@@ -1,0 +1,30 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 5.199.166.87
+          username: root
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script: |
+            cd /srv/percy-ecomm/backend/
+            source .venv/bin/activate
+            git pull
+            pip install -r requirements.txt
+            sudo systemctl stop fastapi
+            sudo systemctl start fastapi
+            sudo systemctl reload caddy

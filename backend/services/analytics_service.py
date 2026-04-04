@@ -168,6 +168,104 @@ async def create_analytics_event(
     return {"ok": bool(stored), "message": "analytics_event_recorded" if stored else "analytics_event_skipped"}
 
 
+async def get_user_events(
+    *,
+    username: str,
+    page: int = 1,
+    size: int = 20,
+    event_type: Optional[str] = None,
+    db: AsyncSession = None,
+) -> Dict[str, Any]:
+    page = max(1, int(page or 1))
+    size = min(100, max(1, int(size or 20)))
+    normalized_event = _normalize_event_type(event_type) if event_type else None
+
+    if settings.USE_MONGO:
+        mdb = get_mongo_db()
+        if mdb is None:
+            raise HTTPException(status_code=500, detail="Mongo not available")
+
+        query: Dict[str, Any] = {"actor_username": username}
+        if normalized_event:
+            query["event_type"] = normalized_event
+
+        total = await mdb.analytics_events.count_documents(query)
+        cursor = (
+            mdb.analytics_events.find(query)
+            .sort("created_at", -1)
+            .skip((page - 1) * size)
+            .limit(size)
+        )
+        docs = await cursor.to_list(length=size)
+
+        events = []
+        for d in docs:
+            created_at = d.get("created_at")
+            events.append(
+                {
+                    "id": str(d.get("_id", "")),
+                    "event_type": d.get("event_type", ""),
+                    "status": d.get("status", ""),
+                    "source": d.get("source", ""),
+                    "details": d.get("details", {}) if isinstance(d.get("details"), dict) else {},
+                    "created_at": created_at.isoformat() if isinstance(created_at, datetime) else str(created_at or ""),
+                }
+            )
+
+        total_pages = max(1, (total + size - 1) // size)
+        return {
+            "events": events,
+            "page": page,
+            "size": size,
+            "total": int(total),
+            "total_pages": int(total_pages),
+        }
+
+    async with get_or_use_session(db) as _db:
+        if _db is None:
+            raise HTTPException(status_code=500, detail="Database not available")
+
+        conditions = [AnalyticsEvent.actor_username == username]
+        if normalized_event:
+            conditions.append(AnalyticsEvent.event_type == normalized_event)
+
+        base_where = and_(*conditions)
+
+        count_stmt = select(func.count(AnalyticsEvent.id)).where(base_where)
+        total = int((await _db.execute(count_stmt)).scalar() or 0)
+
+        events_stmt = (
+            select(AnalyticsEvent)
+            .where(base_where)
+            .order_by(AnalyticsEvent.created_at.desc())
+            .offset((page - 1) * size)
+            .limit(size)
+        )
+        rows = (await _db.execute(events_stmt)).scalars().all()
+
+        events = []
+        for row in rows:
+            events.append(
+                {
+                    "id": row.id,
+                    "event_type": row.event_type,
+                    "status": row.status,
+                    "source": row.source or "",
+                    "details": row.details if isinstance(row.details, dict) else {},
+                    "created_at": row.created_at.isoformat() if row.created_at else "",
+                }
+            )
+
+        total_pages = max(1, (total + size - 1) // size)
+        return {
+            "events": events,
+            "page": page,
+            "size": size,
+            "total": total,
+            "total_pages": int(total_pages),
+        }
+
+
 async def get_admin_analytics_events(
     *,
     page: int = 1,

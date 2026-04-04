@@ -702,6 +702,7 @@ export async function createAnalyticsEvent(payload: {
   });
 }
 
+
 export async function purchaseSubscription(serviceName: string, duration: string) {
   return apiCall(`${API_URL}/purchase-subscription`, {
     method: 'POST',

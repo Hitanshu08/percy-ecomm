@@ -19,6 +19,10 @@ const DEFAULT_FILTERS: AdminAnalyticsFilters = {
 
 const EVENT_TYPES = [
   { value: '', label: 'All events' },
+  { value: 'page_load', label: 'Page Load' },
+  { value: 'button_click', label: 'Button Click' },
+  { value: 'credit_add', label: 'Credit Add' },
+  { value: 'purchase', label: 'Purchase' },
   { value: 'subscription_purchase', label: 'Subscription Purchase' },
   { value: 'wallet_add_credit', label: 'Wallet Add Credit' },
   { value: 'admin_add_credit', label: 'Admin Add Credit' },

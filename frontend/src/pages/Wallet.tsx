@@ -4,7 +4,7 @@ import { getWallet, createWalletPayment, createPaypalOrder, capturePaypalOrder, 
 import { config } from '../config/index';
 import { Button } from '../components/ui';
 import { Spinner, Modal } from '../components/feedback';
-import { WalletCard } from '../features/wallet/components';
+import { trackCreditAdd, trackButtonClick } from '../lib/eventTracker';
 
 // Declare Razorpay types
 declare global {
@@ -72,6 +72,7 @@ export default function Wallet() {
         setLoading(true);
         const result = await capturePaypalOrder(token);
         if ((result as any)?.status === 'success') {
+          trackCreditAdd((result as any)?.credits_added ?? 0, { provider: 'paypal' });
           openModal('Payment Successful', (result as any)?.message || 'Credits added to your wallet.');
           await fetchWalletData();
           // Clean URL
@@ -103,6 +104,7 @@ export default function Wallet() {
         setLoading(true);
         const result = await verifyRazorpayPaymentLink(paymentLinkId, paymentId);
         if ((result as any)?.status === 'success') {
+          trackCreditAdd((result as any)?.credits_added ?? 0, { provider: 'razorpay_link' });
           openModal('Payment Successful', (result as any)?.message || 'Credits added to your wallet.');
           await fetchWalletData();
           // Clean URL
@@ -123,6 +125,7 @@ export default function Wallet() {
         setLoading(true);
         const result = await verifyRazorpayPayment(orderId, paymentId, signature);
         if ((result as any)?.status === 'success') {
+          trackCreditAdd((result as any)?.credits_added ?? 0, { provider: 'razorpay' });
           openModal('Payment Successful', (result as any)?.message || 'Credits added to your wallet.');
           await fetchWalletData();
           // Clean URL
@@ -152,6 +155,7 @@ export default function Wallet() {
   const startPayment = async (bundle: '1'|'2'|'5'|'10'|'20'|'50') => {
     try {
       setCreating(bundle);
+      trackButtonClick('start_payment', { bundle, provider });
       if (provider === 'paypal') {
         const resp = await createPaypalOrder(bundle);
         const url = (resp as any)?.approve_url;
@@ -200,6 +204,7 @@ export default function Wallet() {
                 response.razorpay_signature
               );
               if ((verifyResult as any)?.status === 'success') {
+                trackCreditAdd((verifyResult as any)?.credits_added ?? 0, { provider: 'razorpay_embedded' });
                 openModal('Payment Successful', (verifyResult as any)?.message || 'Credits added to your wallet.');
                 await fetchWalletData();
               } else {
@@ -343,15 +348,6 @@ export default function Wallet() {
           {/* Conversion Rate */}
           <div className="lg:col-span-2">
             <div className="glass-panel rounded-2xl border border-white/40 dark:border-slate-500/30 p-6">
-              <div className="mb-6">
-                {/* <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                  Conversion Rate
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  Approximate conversion rates: 1 USD = {config.getUsdToCreditsRate()} Credits
-                </p> */}
-              </div>
-
               {/* Provider toggle */}
               <div className="mb-4 flex gap-3">
                 <button
