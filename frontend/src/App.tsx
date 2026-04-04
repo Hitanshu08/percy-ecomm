@@ -15,6 +15,8 @@ import ContactUs from "./pages/ContactUs";
 import Subscriptions from "./pages/Subscriptions";
 import Admin from "./pages/Admin";
 import AdminAnalytics from "./pages/AdminAnalytics";
+import AdminUserDetail from "./pages/AdminUserDetail";
+import AdminServiceDetail from "./pages/AdminServiceDetail";
 import AccessDenied from "./pages/AccessDenied";
 import NotFound from "./pages/NotFound";
 import TermsAndConditions from "./components/TermsAndConditions";
@@ -50,6 +52,8 @@ function AppLayout() {
           <Route path="/terms" element={<TermsAndConditions />} />
           <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           <Route path="/admin/analytics" element={<AdminRoute><AdminAnalytics /></AdminRoute>} />
+          <Route path="/admin/users/:username" element={<AdminRoute><AdminUserDetail /></AdminRoute>} />
+          <Route path="/admin/services/:serviceName" element={<AdminRoute><AdminServiceDetail /></AdminRoute>} />
           <Route path="/access-denied" element={<AccessDenied />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
